@@ -32,6 +32,7 @@ let spotifyIframeApiReady = false;
 let spotifyEmbedController = null;
 let spotifyLoadedUri = '';
 let spotifySessionDetected = false;
+let spotifyLocallyMuted = false;
 
 let PHASE_DURATIONS = {
   study:        25 * 60,
@@ -567,6 +568,11 @@ function syncSpotifyController() {
   }
 
   const shouldPlay = !!currentPlayback.playing;
+  if (spotifyLocallyMuted) {
+    spotifyEmbedController.pause();
+    return;
+  }
+
   if (spotifyLoadedUri !== item.spotifyUri) {
     spotifyLoadedUri = item.spotifyUri;
     spotifyEmbedController.loadUri(item.spotifyUri);
@@ -580,6 +586,12 @@ function syncSpotifyController() {
 
   if (shouldPlay) spotifyEmbedController.resume();
   else spotifyEmbedController.pause();
+}
+
+function toggleLocalMute() {
+  spotifyLocallyMuted = !spotifyLocallyMuted;
+  updateLocalMuteButton();
+  syncSpotifyController();
 }
 
 function renderNowPlaying() {
@@ -663,10 +675,20 @@ function updatePlaybackButtons() {
   const btn = document.getElementById('btn-queue-play');
   if (btn) btn.innerHTML = `<span class="material-symbols-rounded">${currentPlayback.playing ? 'pause' : 'play_arrow'}</span>`;
 
+  updateLocalMuteButton();
+
   const skip = document.getElementById('btn-queue-skip');
   const prev = document.getElementById('btn-queue-prev');
   if (skip) skip.disabled = !currentQueue.length || currentPlayback.trackIndex >= currentQueue.length - 1;
   if (prev) prev.disabled = currentPlayback.trackIndex <= 0;
+}
+
+function updateLocalMuteButton() {
+  const btn = document.getElementById('btn-queue-mute');
+  if (!btn) return;
+  btn.innerHTML = `<span class="material-symbols-rounded text-[16px]">${spotifyLocallyMuted ? 'volume_off' : 'volume_up'}</span>`;
+  btn.title = spotifyLocallyMuted ? 'Activar audio solo para ti' : 'Silenciar solo para ti';
+  btn.setAttribute('aria-label', btn.title);
 }
 
 // ─── Pestañas panel derecho ───────────────────────────────────────────────────

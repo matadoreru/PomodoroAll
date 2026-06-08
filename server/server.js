@@ -114,15 +114,30 @@ async function resolveTrackItem(spotifyId, addedBy) {
 
 function extractPlaylistTracks(html, addedBy, sourceTitle = '') {
   const trackHrefRe = /href="\/track\/([a-zA-Z0-9]+)"/g;
+  const trackUriRe = /spotify:track:([a-zA-Z0-9]+)/g;
   const seen = new Set();
+  const orderedIds = [];
   const tracks = [];
 
   for (const match of html.matchAll(trackHrefRe)) {
-    const spotifyId = match[1];
-    if (seen.has(spotifyId)) continue;
-    seen.add(spotifyId);
+    if (seen.has(match[1])) continue;
+    seen.add(match[1]);
+    orderedIds.push(match[1]);
+  }
 
-    const slice = html.slice(Math.max(0, match.index - 500), Math.min(html.length, match.index + 2000));
+  for (const match of html.matchAll(trackUriRe)) {
+    if (seen.has(match[1])) continue;
+    seen.add(match[1]);
+    orderedIds.push(match[1]);
+  }
+
+  for (const spotifyId of orderedIds) {
+    const firstIndex = html.indexOf(`/track/${spotifyId}`);
+    const fallbackIndex = html.indexOf(`spotify:track:${spotifyId}`);
+    const matchIndex = firstIndex !== -1 ? firstIndex : fallbackIndex;
+    if (matchIndex === -1) continue;
+
+    const slice = html.slice(Math.max(0, matchIndex - 600), Math.min(html.length, matchIndex + 2400));
     const titleMatch = slice.match(
       new RegExp(`href="\\/track\\/${spotifyId}"[^>]*>[\\s\\S]*?data-encore-id="listRowTitle"[^>]*>[\\s\\S]*?<span[^>]*>([^<]+)<\\/span>`)
     );
