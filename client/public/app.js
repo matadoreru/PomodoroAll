@@ -251,8 +251,6 @@ function handleLeave() {
   if (socket) { socket.disconnect(); socket = null; }
   clearInterval(localTickInterval);
   if (spotifyEmbedController) spotifyEmbedController.pause();
-  spotifySessionDetected = false;
-  updateSpotifyLoginHint();
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('screen-lobby').style.display = 'flex';
   history.pushState({}, '', '/');
