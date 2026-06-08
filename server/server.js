@@ -30,24 +30,40 @@ app.get('*', (req, res) => {
 });
 
 // ─── Estado en memoria de las salas ──────────────────────────────────────────
-// Estructura: { [roomId]: Room }
 const rooms = {};
+
+function getPublicRooms() {
+  return Object.values(rooms)
+    .filter(r => Object.keys(r.users).length > 0 && Object.keys(r.users).length < 8)
+    .sort((a, b) => Object.keys(b.users).length - Object.keys(a.users).length)
+    .slice(0, 5)
+    .map(r => ({
+      id: r.id,
+      userCount: Object.keys(r.users).length,
+      phase: r.timer.phase,
+      running: r.timer.running,
+    }));
+}
+
+app.get('/api/rooms', (req, res) => res.json(getPublicRooms()));
 
 /**
  * Crea una sala con su estado inicial del temporizador Pomodoro.
  */
 function createRoom(roomId) {
+  const settings = { study: 25 * 60, short_break: 5 * 60, long_break: 15 * 60 };
   return {
     id: roomId,
-    users: {},           // { [socketId]: UserState }
+    users: {},
     timer: {
-      phase: 'study',    // 'study' | 'short_break' | 'long_break'
+      phase: 'study',
       running: false,
-      timeLeft: 25 * 60, // segundos
-      startedAt: null,   // timestamp de cuando se inició la última vez
-      pomodoroCount: 0,  // cuántos pomodoros completados
+      timeLeft: settings.study,
+      startedAt: null,
+      pomodoroCount: 0,
     },
-    messages: [],        // historial de chat (máx 50)
+    settings,
+    messages: [],
     createdAt: Date.now()
   };
 }
@@ -84,19 +100,19 @@ function broadcastTimer(roomId) {
  */
 function advancePhase(room) {
   const timer = room.timer;
+  const s = room.settings;
   if (timer.phase === 'study') {
     timer.pomodoroCount++;
-    // Cada 4 pomodoros = descanso largo
     if (timer.pomodoroCount % 4 === 0) {
       timer.phase = 'long_break';
-      timer.timeLeft = 15 * 60;
+      timer.timeLeft = s.long_break;
     } else {
       timer.phase = 'short_break';
-      timer.timeLeft = 5 * 60;
+      timer.timeLeft = s.short_break;
     }
   } else {
     timer.phase = 'study';
-    timer.timeLeft = 25 * 60;
+    timer.timeLeft = s.study;
   }
   timer.running = false;
   timer.startedAt = null;
@@ -152,8 +168,10 @@ io.on('connection', (socket) => {
     callback({
       roomId,
       timer: getTimerSnapshot(rooms[roomId]),
-      users: Object.values(rooms[roomId].users)
+      users: Object.values(rooms[roomId].users),
+      settings: rooms[roomId].settings,
     });
+    io.emit('rooms:update', getPublicRooms());
   });
 
   // ── Unirse a sala ─────────────────────────────────────────────────────────
@@ -193,8 +211,10 @@ io.on('connection', (socket) => {
       roomId,
       timer: getTimerSnapshot(room),
       users: Object.values(room.users),
-      messages: room.messages.slice(-20) // últimos 20 mensajes
+      messages: room.messages.slice(-20),
+      settings: room.settings,
     });
+    io.emit('rooms:update', getPublicRooms());
   });
 
   // ── Control del temporizador ──────────────────────────────────────────────
@@ -249,7 +269,7 @@ io.on('connection', (socket) => {
 
     room.timer.phase = 'study';
     room.timer.running = false;
-    room.timer.timeLeft = 25 * 60;
+    room.timer.timeLeft = room.settings.study;
     room.timer.startedAt = null;
     room.timer.pomodoroCount = 0;
 
@@ -271,6 +291,27 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('timer:skipped_by', {
       username: socket.data.username
     });
+  });
+
+  // ── Configuración de duraciones ───────────────────────────────────────────
+  socket.on('settings:update', ({ study, short_break, long_break }) => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room) return;
+
+    const clamp = (mins) => Math.max(1, Math.min(99, Math.round(mins))) * 60;
+    room.settings.study       = clamp(study);
+    room.settings.short_break = clamp(short_break);
+    room.settings.long_break  = clamp(long_break);
+
+    // Si el temporizador está pausado, ajusta el tiempo restante de la fase actual
+    if (!room.timer.running) {
+      room.timer.timeLeft = room.settings[room.timer.phase];
+    }
+
+    io.to(roomId).emit('settings:sync', room.settings);
+    broadcastTimer(roomId);
+    console.log(`[CFG] Sala ${roomId}: estudio=${study}m descanso=${short_break}m largo=${long_break}m`);
   });
 
   // ── Chat ──────────────────────────────────────────────────────────────────
@@ -338,12 +379,14 @@ io.on('connection', (socket) => {
       users: Object.values(room.users)
     });
 
-    // Limpiar sala si está vacía después de 5 minutos
+    io.emit('rooms:update', getPublicRooms());
+
     if (Object.keys(room.users).length === 0) {
       setTimeout(() => {
         if (rooms[roomId] && Object.keys(rooms[roomId].users).length === 0) {
           delete rooms[roomId];
           console.log(`[SALA] Eliminada por inactividad: ${roomId}`);
+          io.emit('rooms:update', getPublicRooms());
         }
       }, 5 * 60 * 1000);
     }
@@ -355,5 +398,5 @@ io.on('connection', (socket) => {
 // ─── Iniciar servidor ─────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
-  console.log(`\n🍅 Pomodoro Sync Server corriendo en http://localhost:${PORT}\n`);
+  console.log(`\nPomodoro Sync Server corriendo en http://localhost:${PORT}\n`);
 });

@@ -25,8 +25,9 @@ let totalStudySeconds = 0;
 let localTickInterval = null;
 let chatOpen = true;
 let currentSpotifyPreset = null;
+let lobbyRefreshInterval = null;
 
-const PHASE_DURATIONS = {
+let PHASE_DURATIONS = {
   study:        25 * 60,
   short_break:   5 * 60,
   long_break:   15 * 60,
@@ -58,6 +59,8 @@ window.addEventListener('DOMContentLoaded', () => {
     if (document.hidden) socket.emit('user:away');
     else socket.emit('user:back');
   });
+
+  startLobbyRefresh();
 });
 
 // ─── Conexión Socket ─────────────────────────────────────────────────────────
@@ -109,6 +112,13 @@ function connectSocket() {
   socket.on('users:update', (users) => renderUsers(users));
   socket.on('chat:message', (msg) => appendChatMessage(msg));
   socket.on('reaction:received', ({ from, emoji }) => showFloatingReaction(emoji, from));
+
+  socket.on('settings:sync', (s) => {
+    PHASE_DURATIONS.study       = s.study;
+    PHASE_DURATIONS.short_break = s.short_break;
+    PHASE_DURATIONS.long_break  = s.long_break;
+    syncSettingsInputs();
+  });
 }
 
 // ─── Crear sala ──────────────────────────────────────────────────────────────
@@ -157,7 +167,13 @@ function handleJoin() {
 }
 
 // ─── Entrar a la app ─────────────────────────────────────────────────────────
-function enterApp({ roomId, timer, users }, messages = []) {
+function enterApp({ roomId, timer, users, settings }, messages = []) {
+  stopLobbyRefresh();
+  if (settings) {
+    PHASE_DURATIONS.study       = settings.study;
+    PHASE_DURATIONS.short_break = settings.short_break;
+    PHASE_DURATIONS.long_break  = settings.long_break;
+  }
   currentRoomId = roomId;
 
   document.getElementById('header-room-code').textContent = roomId;
@@ -185,6 +201,7 @@ function handleLeave() {
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('screen-lobby').style.display = 'flex';
   history.pushState({}, '', '/');
+  startLobbyRefresh();
 }
 
 // ─── Estado del temporizador ─────────────────────────────────────────────────
@@ -260,7 +277,8 @@ function updateProgressRing(timeLeft, total) {
 }
 
 function updatePlayPauseBtn(running) {
-  document.getElementById('btn-play-pause').textContent = running ? '⏸' : '▶';
+  document.getElementById('btn-play-pause').innerHTML =
+    `<span class="material-symbols-rounded">${running ? 'pause' : 'play_arrow'}</span>`;
 }
 
 function updatePhaseUI(phase) {
@@ -381,7 +399,7 @@ function loadSpotifyPlaylist(preset) {
   document.getElementById('spotify-widget-frame').innerHTML = `
     <iframe
       src="https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0"
-      width="100%" height="152" frameborder="0" allowfullscreen=""
+      width="100%" height="232" frameborder="0" allowfullscreen=""
       allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
       loading="lazy"
     ></iframe>`;
@@ -390,8 +408,46 @@ function loadSpotifyPlaylist(preset) {
 // ─── Toggle chat ─────────────────────────────────────────────────────────────
 function toggleChat() {
   chatOpen = !chatOpen;
-  document.getElementById('panel-right').classList.toggle('collapsed', !chatOpen);
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) {
+    document.getElementById('panel-right').classList.toggle('mobile-open', chatOpen);
+  } else {
+    document.getElementById('chat-section').classList.toggle('hidden', !chatOpen);
+  }
   document.getElementById('btn-toggle-chat').classList.toggle('active', chatOpen);
+}
+
+// ─── Playlist personalizada ───────────────────────────────────────────────────
+function loadCustomPlaylist() {
+  const input = document.getElementById('custom-playlist-input');
+  const value = input.value.trim();
+  if (!value) return;
+
+  // Acepta URL completa, URI spotify: o ID directo
+  let id = value;
+  const urlMatch = value.match(/playlist\/([a-zA-Z0-9]+)/);
+  if (urlMatch) id = urlMatch[1];
+  const uriMatch = value.match(/spotify:playlist:([a-zA-Z0-9]+)/);
+  if (uriMatch) id = uriMatch[1];
+
+  if (!/^[a-zA-Z0-9]{10,40}$/.test(id)) {
+    showToast('⚠ Pega una URL o ID válido de Spotify');
+    return;
+  }
+
+  document.querySelectorAll('.spotify-preset').forEach(b => b.classList.remove('active'));
+  currentSpotifyPreset = null;
+
+  document.getElementById('spotify-widget-frame').innerHTML = `
+    <iframe
+      src="https://open.spotify.com/embed/playlist/${id}?utm_source=generator&theme=0"
+      width="100%" height="232" frameborder="0" allowfullscreen=""
+      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+      loading="lazy"
+    ></iframe>`;
+
+  input.value = '';
+  showToast('✓ Playlist cargada');
 }
 
 // ─── Modal compartir ──────────────────────────────────────────────────────────
@@ -424,6 +480,99 @@ function showLobbyError(msg) {
   const el = document.getElementById('lobby-error');
   el.textContent = msg;
   setTimeout(() => { el.textContent = ''; }, 4000);
+}
+
+// ─── Modal de configuración ───────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('settings-study').value       = Math.round(PHASE_DURATIONS.study / 60);
+  document.getElementById('settings-short-break').value = Math.round(PHASE_DURATIONS.short_break / 60);
+  document.getElementById('settings-long-break').value  = Math.round(PHASE_DURATIONS.long_break / 60);
+  document.getElementById('modal-settings').classList.add('open');
+}
+
+function closeSettings(e) {
+  if (!e || e.target === document.getElementById('modal-settings')) {
+    document.getElementById('modal-settings').classList.remove('open');
+  }
+}
+
+function saveSettings() {
+  const study      = parseInt(document.getElementById('settings-study').value);
+  const shortBreak = parseInt(document.getElementById('settings-short-break').value);
+  const longBreak  = parseInt(document.getElementById('settings-long-break').value);
+
+  if ([study, shortBreak, longBreak].some(v => isNaN(v) || v < 1 || v > 99)) {
+    showToast('⚠ Los minutos deben estar entre 1 y 99');
+    return;
+  }
+
+  if (socket && currentRoomId) {
+    socket.emit('settings:update', { study, short_break: shortBreak, long_break: longBreak });
+  } else {
+    PHASE_DURATIONS.study       = study * 60;
+    PHASE_DURATIONS.short_break = shortBreak * 60;
+    PHASE_DURATIONS.long_break  = longBreak * 60;
+  }
+
+  document.getElementById('modal-settings').classList.remove('open');
+  showToast('✓ Duraciones actualizadas');
+}
+
+function syncSettingsInputs() {
+  const studyEl  = document.getElementById('settings-study');
+  const shortEl  = document.getElementById('settings-short-break');
+  const longEl   = document.getElementById('settings-long-break');
+  if (studyEl) studyEl.value  = Math.round(PHASE_DURATIONS.study / 60);
+  if (shortEl) shortEl.value  = Math.round(PHASE_DURATIONS.short_break / 60);
+  if (longEl)  longEl.value   = Math.round(PHASE_DURATIONS.long_break / 60);
+}
+
+// ─── Salas activas (lobby) ────────────────────────────────────────────────────
+function startLobbyRefresh() {
+  fetchLobbyRooms();
+  lobbyRefreshInterval = setInterval(fetchLobbyRooms, 10000);
+}
+
+function stopLobbyRefresh() {
+  clearInterval(lobbyRefreshInterval);
+  lobbyRefreshInterval = null;
+}
+
+async function fetchLobbyRooms() {
+  try {
+    const res = await fetch('/api/rooms');
+    const data = await res.json();
+    renderLobbyRooms(data);
+  } catch {}
+}
+
+const PHASE_LABEL_ES = { study: 'Estudio', short_break: 'Descanso', long_break: 'Largo' };
+
+function renderLobbyRooms(rooms) {
+  const el = document.getElementById('lobby-rooms');
+  if (!el) return;
+  if (!rooms.length) {
+    el.innerHTML = '<p class="text-center text-[12px] py-2" style="color:var(--text-muted)">Sin salas activas ahora mismo.</p>';
+    return;
+  }
+  el.innerHTML = rooms.map(r => `
+    <div class="lobby-room-card" onclick="quickJoin('${escapeHtml(r.id)}')">
+      <span class="material-symbols-rounded text-[18px]" style="color:var(--text-muted)">group</span>
+      <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+        <span class="text-[13px] font-medium tracking-wide" style="color:var(--text)">${escapeHtml(r.id)}</span>
+        <span class="text-[11px]" style="color:var(--text-muted)">${r.userCount} usuario${r.userCount !== 1 ? 's' : ''}</span>
+      </div>
+      <span class="room-phase${r.running ? ' running' : ''}">${PHASE_LABEL_ES[r.phase] || r.phase}</span>
+      <button class="join-btn">Unirse</button>
+    </div>
+  `).join('');
+}
+
+function quickJoin(roomId) {
+  const username = document.getElementById('input-username').value.trim();
+  if (!username) { showLobbyError('Escribe tu nombre para unirte.'); return; }
+  document.getElementById('input-roomcode').value = roomId;
+  handleJoin();
 }
 
 // ─── Sonido de notificación ───────────────────────────────────────────────────

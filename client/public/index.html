@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20,400,1,0" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -21,7 +22,7 @@
 
     <div>
       <div class="flex items-center gap-3 mb-1">
-        <span class="text-[28px] animate-pulse-glow">🍅</span>
+        <span class="material-symbols-rounded text-[28px] animate-pulse-glow" style="color:var(--accent)">timer</span>
         <h1 class="font-serif text-[22px] font-normal tracking-tight">
           Pomodoro<span style="color:var(--accent)">Sync</span>
         </h1>
@@ -35,6 +36,16 @@
       </label>
       <input id="input-username" type="text" placeholder="Ej: Sofía" maxlength="20" autocomplete="off"
              class="form-input" />
+    </div>
+
+    <!-- Salas activas -->
+    <div class="flex flex-col gap-2">
+      <p class="text-[11px] font-medium uppercase tracking-[1.2px]" style="color:var(--text-muted)">
+        Salas activas
+      </p>
+      <div id="lobby-rooms" class="flex flex-col gap-1.5">
+        <p class="text-center text-[12px] py-2" style="color:var(--text-muted)">Cargando...</p>
+      </div>
     </div>
 
     <div class="flex flex-col gap-2.5">
@@ -59,19 +70,26 @@
   <header class="flex items-center justify-between px-6 py-4 border-b shrink-0"
           style="border-color:var(--border)">
     <div class="flex items-center gap-2 font-serif text-[17px] font-normal">
-      <span class="text-[20px]">🍅</span>
+      <span class="material-symbols-rounded text-[20px]" style="color:var(--accent)">timer</span>
       <span>PomodoroSync</span>
     </div>
 
     <button class="room-badge" onclick="openShareModal()" title="Compartir sala">
-      <span>🔗</span>
+      <span class="material-symbols-rounded text-[14px]">link</span>
       <span>Sala:</span>
       <span class="code" id="header-room-code">——</span>
     </button>
 
     <div class="flex items-center gap-2">
-      <button class="icon-btn" id="btn-toggle-chat" onclick="toggleChat()" title="Chat">💬</button>
-      <button class="icon-btn" onclick="handleLeave()" title="Salir">🚪</button>
+      <button class="icon-btn" id="btn-toggle-chat" onclick="toggleChat()" title="Chat">
+        <span class="material-symbols-rounded text-[18px]">chat</span>
+      </button>
+      <button class="icon-btn" onclick="openSettings()" title="Configurar temporizador">
+        <span class="material-symbols-rounded text-[18px]">settings</span>
+      </button>
+      <button class="icon-btn" onclick="handleLeave()" title="Salir">
+        <span class="material-symbols-rounded text-[18px]">logout</span>
+      </button>
     </div>
   </header>
 
@@ -91,7 +109,7 @@
           Estadísticas
         </p>
         <div class="flex justify-between text-xs">
-          <span style="color:var(--text-muted)">🍅 Completados</span>
+          <span style="color:var(--text-muted)"><span class="material-symbols-rounded text-[12px]" style="vertical-align:middle">timer</span> Completados</span>
           <span class="font-medium" style="color:var(--accent)" id="stat-pomodoros">0</span>
         </div>
         <div class="flex justify-between text-xs">
@@ -129,22 +147,30 @@
 
       <!-- Controls -->
       <div class="flex items-center gap-3 z-10">
-        <button class="btn-small" onclick="resetTimer()" title="Reiniciar">↺</button>
-        <button class="btn-play-pause" id="btn-play-pause" onclick="toggleTimer()">▶</button>
-        <button class="btn-small" onclick="skipPhase()" title="Saltar fase">⏭</button>
+        <button class="btn-small" onclick="resetTimer()" title="Reiniciar">
+          <span class="material-symbols-rounded text-[18px]">restart_alt</span>
+        </button>
+        <button class="btn-play-pause" id="btn-play-pause" onclick="toggleTimer()">
+          <span class="material-symbols-rounded">play_arrow</span>
+        </button>
+        <button class="btn-small" onclick="skipPhase()" title="Saltar fase">
+          <span class="material-symbols-rounded text-[18px]">skip_next</span>
+        </button>
       </div>
 
     </main>
 
     <!-- Right panel: Chat + Spotify -->
-    <aside class="panel-right w-[280px] border-l flex flex-col shrink-0" id="panel-right"
+    <aside class="panel-right w-[380px] border-l flex flex-col shrink-0" id="panel-right"
            style="border-color:var(--border)">
 
       <!-- Spotify -->
       <div class="p-4 border-b shrink-0" style="border-color:var(--border)">
         <div class="flex items-center gap-2 mb-3">
-          <div class="w-5 h-5 rounded-full flex items-center justify-center text-[11px]"
-               style="background:#1DB954">♪</div>
+          <div class="w-5 h-5 rounded-full flex items-center justify-center"
+               style="background:#1DB954">
+            <span class="material-symbols-rounded text-[13px]" style="color:#000">music_note</span>
+          </div>
           <span class="text-xs font-medium" style="color:var(--text-dim)">Música de estudio</span>
         </div>
 
@@ -155,7 +181,8 @@
           </div>
         </div>
 
-        <div class="flex flex-col gap-1.5 mt-2.5">
+        <!-- Presets en cuadrícula 2×2 -->
+        <div class="grid grid-cols-2 gap-1.5 mt-2.5">
           <button class="spotify-preset" onclick="loadSpotifyPlaylist('lofi')" id="preset-lofi">
             <span class="text-[15px]">🌧</span> Lo-Fi Hip Hop
           </button>
@@ -169,14 +196,30 @@
             <span class="text-[15px]">☕</span> Jazz tranquilo
           </button>
         </div>
+
+        <!-- Playlist personalizada por URL o ID -->
+        <div class="flex gap-1.5 mt-2.5">
+          <input
+            id="custom-playlist-input"
+            type="text"
+            placeholder="Pega URL o ID de tu playlist…"
+            class="form-input flex-1 py-2 text-xs"
+            onkeydown="if(event.key==='Enter') loadCustomPlaylist()"
+          />
+          <button class="btn btn-secondary shrink-0 px-3 py-2" onclick="loadCustomPlaylist()">
+            <span class="material-symbols-rounded text-[16px]">send</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Chat -->
-      <div class="flex-1 flex flex-col overflow-hidden">
-        <div class="px-4 pt-3.5 pb-2.5 border-b shrink-0" style="border-color:var(--border)">
+      <!-- Chat (se puede ocultar independientemente con el botón 💬) -->
+      <div class="flex-1 flex flex-col overflow-hidden" id="chat-section">
+        <div class="px-4 pt-3.5 pb-2.5 border-b shrink-0 flex items-center justify-between"
+             style="border-color:var(--border)">
           <span class="text-[10px] font-medium uppercase tracking-[1.5px]" style="color:var(--text-muted)">
             Chat
           </span>
+          <span class="text-[10px]" style="color:var(--text-muted)">Ocultar con el botón de chat</span>
         </div>
 
         <div class="chat-messages flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5 scroll-smooth"
@@ -207,13 +250,82 @@
             maxlength="300"
             onkeydown="handleChatKey(event)"
           ></textarea>
-          <button class="w-9 h-9 shrink-0 rounded-lg border-0 flex items-center justify-center text-sm cursor-pointer transition-all hover:brightness-110"
+          <button class="w-9 h-9 shrink-0 rounded-lg border-0 flex items-center justify-center cursor-pointer transition-all hover:brightness-110"
                   style="background:var(--accent);color:#0f0f13"
-                  onclick="sendMessage()">↑</button>
+                  onclick="sendMessage()">
+            <span class="material-symbols-rounded text-[18px]">send</span>
+          </button>
         </div>
       </div>
 
     </aside>
+  </div>
+</div>
+
+<!-- ══ MODAL CONFIGURACIÓN ══════════════════════════════════════════════════ -->
+<div class="modal-overlay fixed inset-0 backdrop-blur-sm z-[999] items-center justify-center"
+     style="background:rgba(0,0,0,0.6)"
+     id="modal-settings" onclick="closeSettings(event)">
+  <div class="flex flex-col gap-5 p-9 w-[min(420px,92vw)] rounded-[20px] border animate-slide-up"
+       style="background:var(--surface);border-color:var(--border)"
+       onclick="event.stopPropagation()">
+
+    <div>
+      <h2 class="font-serif text-[22px] font-normal">Temporizador</h2>
+      <p class="text-[13px] mt-1" style="color:var(--text-dim)">
+        Los cambios se aplican a toda la sala al guardar.
+      </p>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <!-- Estudio -->
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[13px] font-medium">Estudio</span>
+          <span class="text-[11px]" style="color:var(--text-muted)">Tiempo de concentración</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <input id="settings-study" type="number" min="1" max="99" value="25"
+                 class="form-input w-16 text-center py-2 text-sm" />
+          <span class="text-[12px]" style="color:var(--text-muted)">min</span>
+        </div>
+      </div>
+
+      <div class="h-px" style="background:var(--border)"></div>
+
+      <!-- Descanso corto -->
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[13px] font-medium">☕ Descanso corto</span>
+          <span class="text-[11px]" style="color:var(--text-muted)">Pausa entre pomodoros</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <input id="settings-short-break" type="number" min="1" max="99" value="5"
+                 class="form-input w-16 text-center py-2 text-sm" />
+          <span class="text-[12px]" style="color:var(--text-muted)">min</span>
+        </div>
+      </div>
+
+      <div class="h-px" style="background:var(--border)"></div>
+
+      <!-- Descanso largo -->
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[13px] font-medium">🌙 Descanso largo</span>
+          <span class="text-[11px]" style="color:var(--text-muted)">Cada 4 pomodoros</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <input id="settings-long-break" type="number" min="1" max="99" value="15"
+                 class="form-input w-16 text-center py-2 text-sm" />
+          <span class="text-[12px]" style="color:var(--text-muted)">min</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-3 mt-1">
+      <button class="btn btn-secondary flex-1" onclick="closeSettings()">Cancelar</button>
+      <button class="btn btn-primary flex-1" onclick="saveSettings()">Guardar</button>
+    </div>
   </div>
 </div>
 
