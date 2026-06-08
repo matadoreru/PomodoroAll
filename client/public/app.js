@@ -28,6 +28,10 @@ let lobbyRefreshInterval = null;
 let currentQueue = [];
 let currentPlayback = { trackIndex: -1, playing: false };
 let renderedTrackIndex = -2;
+let renderedTrackUri = null;
+let spotifyIframeApi = null;
+let spotifyEmbedController = null;
+let spotifyEmbedReady = false;
 
 let PHASE_DURATIONS = {
   study:        25 * 60,
@@ -65,6 +69,11 @@ window.addEventListener('DOMContentLoaded', () => {
   startLobbyRefresh();
   initResizeHandle();
 });
+
+window.onSpotifyIframeApiReady = (IFrameAPI) => {
+  spotifyIframeApi = IFrameAPI;
+  syncSpotifyEmbed();
+};
 
 // ─── Conexión Socket ─────────────────────────────────────────────────────────
 function connectSocket() {
@@ -147,7 +156,7 @@ function connectSocket() {
           ? `${escapeHtml(username)} reanudó la música`
           : `${escapeHtml(username)} pausó la música`);
     }
-    tryControlSpotifyIframe(playback.playing);
+    syncSpotifyEmbed();
   });
 }
 
@@ -477,15 +486,83 @@ function queueJump(index) {
   socket.emit('queue:jump', { index });
 }
 
-function tryControlSpotifyIframe(play) {
-  const iframe = document.getElementById('spotify-iframe');
-  if (!iframe) return;
+function getCurrentQueueItem() {
+  return currentQueue[currentPlayback.trackIndex] || null;
+}
+
+function getSpotifyUri(item) {
+  if (!item) return null;
+  if (item.spotifyUri) return item.spotifyUri;
+
+  const match = item.embedUrl?.match(/embed\/(track|playlist)\/([a-zA-Z0-9]+)/);
+  return match ? `spotify:${match[1]}:${match[2]}` : null;
+}
+
+function destroySpotifyEmbed() {
+  if (spotifyEmbedController) {
+    try { spotifyEmbedController.destroy(); } catch {}
+  }
+  spotifyEmbedController = null;
+  spotifyEmbedReady = false;
+}
+
+function applySpotifyPlaybackState() {
+  if (!spotifyEmbedController || !spotifyEmbedReady) return;
+
   try {
-    iframe.contentWindow.postMessage(
-      JSON.stringify({ method: play ? 'play' : 'pause' }),
-      'https://open.spotify.com'
-    );
+    if (currentPlayback.playing) spotifyEmbedController.resume();
+    else spotifyEmbedController.pause();
   } catch {}
+}
+
+function syncSpotifyEmbed() {
+  const frame = document.getElementById('now-playing-frame');
+  const item = getCurrentQueueItem();
+  if (!frame) return;
+
+  if (!item) {
+    destroySpotifyEmbed();
+    frame.innerHTML = `<div style="height:72px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;gap:6px">
+      <span class="material-symbols-rounded text-[16px]">music_off</span> Cola vacía — añade canciones abajo
+    </div>`;
+    return;
+  }
+
+  const uri = getSpotifyUri(item);
+  const height = item.type === 'playlist' ? 352 : 80;
+  if (!uri) return;
+
+  if (!spotifyEmbedController || renderedTrackUri !== uri) {
+    destroySpotifyEmbed();
+    frame.innerHTML = `<div id="spotify-embed-container" style="height:${height}px"></div>`;
+
+    if (!spotifyIframeApi) return;
+
+    const host = document.getElementById('spotify-embed-container');
+    if (!host) return;
+
+    spotifyIframeApi.createController(host, {
+      width: '100%',
+      height,
+      uri,
+    }, (controller) => {
+      spotifyEmbedController = controller;
+      spotifyEmbedReady = false;
+
+      controller.addListener('ready', () => {
+        spotifyEmbedReady = true;
+        applySpotifyPlaybackState();
+      });
+
+      controller.addListener('playback_update', () => {
+        spotifyEmbedReady = true;
+      });
+
+      applySpotifyPlaybackState();
+    });
+  } else {
+    applySpotifyPlaybackState();
+  }
 }
 
 function renderNowPlaying() {
@@ -494,24 +571,21 @@ function renderNowPlaying() {
   const addedByEl = document.getElementById('now-playing-added-by');
   if (!frame) return;
 
-  const item = currentQueue[currentPlayback.trackIndex];
+  const item = getCurrentQueueItem();
+  const itemUri = getSpotifyUri(item);
 
-  if (currentPlayback.trackIndex !== renderedTrackIndex) {
+  if (currentPlayback.trackIndex !== renderedTrackIndex || itemUri !== renderedTrackUri) {
     renderedTrackIndex = currentPlayback.trackIndex;
+    renderedTrackUri = itemUri;
     if (!item) {
-      frame.innerHTML = `<div style="height:72px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;gap:6px">
-        <span class="material-symbols-rounded text-[16px]">music_off</span> Cola vacía — añade canciones abajo
-      </div>`;
+      syncSpotifyEmbed();
     } else {
-      const h = item.type === 'playlist' ? 352 : 80;
-      frame.innerHTML = `<iframe id="spotify-iframe"
-        src="${item.embedUrl}?utm_source=generator&theme=0"
-        width="100%" height="${h}" frameborder="0" allowfullscreen=""
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        loading="lazy"></iframe>`;
+      syncSpotifyEmbed();
     }
     if (titleEl)   titleEl.textContent   = item?.title || '—';
     if (addedByEl) addedByEl.textContent = item ? `Añadido por ${escapeHtml(item.addedBy)}` : '';
+  } else {
+    applySpotifyPlaybackState();
   }
 }
 

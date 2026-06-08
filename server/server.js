@@ -353,7 +353,14 @@ io.on('connection', (socket) => {
       if (r.ok) { const d = await r.json(); title = d.title || title; }
     } catch {}
 
-    const item = { id: uuidv4(), embedUrl, title, type: itemType, addedBy: socket.data.username };
+    const item = {
+      id: uuidv4(),
+      embedUrl,
+      spotifyUri: `spotify:${itemType}:${spotifyId}`,
+      title,
+      type: itemType,
+      addedBy: socket.data.username
+    };
     room.queue.push(item);
     if (room.playback.trackIndex === -1) room.playback.trackIndex = 0;
     io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
