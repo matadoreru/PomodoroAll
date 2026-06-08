@@ -1,0 +1,313 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg:          #0f0f13;
+    --surface:     #17171e;
+    --surface-2:   #1e1e28;
+    --border:      rgba(255, 255, 255, 0.07);
+    --text:        #e8e6f0;
+    --text-muted:  #6b6880;
+    --text-dim:    #9d9ab0;
+
+    --study-hue:      340;
+    --break-hue:      195;
+    --long-break-hue: 145;
+
+    --accent:      hsl(var(--study-hue), 65%, 72%);
+    --accent-glow: hsl(var(--study-hue), 65%, 72%, 0.15);
+    --accent-ring: hsl(var(--study-hue), 65%, 72%, 0.35);
+
+    --radius:    14px;
+    --radius-sm: 8px;
+    --transition: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    line-height: 1.6;
+  }
+}
+
+@layer components {
+  /* ─── Form input ──────────────────────────────── */
+  .form-input {
+    @apply w-full text-[15px] px-4 py-3 rounded-lg outline-none transition-all;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .form-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+  }
+  .form-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  /* ─── Divider ─────────────────────────────────── */
+  .divider {
+    @apply flex items-center gap-3 text-xs;
+    color: var(--text-muted);
+  }
+  .divider::before,
+  .divider::after {
+    content: '';
+    @apply flex-1 h-px;
+    background: var(--border);
+  }
+
+  /* ─── Buttons ─────────────────────────────────── */
+  .btn {
+    @apply py-[13px] px-5 rounded-lg border-0 cursor-pointer text-sm font-medium text-center transition-all;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #0f0f13;
+  }
+  .btn-primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px var(--accent-glow);
+  }
+  .btn-secondary {
+    @apply border;
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .btn:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* ─── Icon button ─────────────────────────────── */
+  .icon-btn {
+    @apply w-9 h-9 rounded-lg bg-transparent cursor-pointer flex items-center justify-center text-base transition-all;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .icon-btn:hover,
+  .icon-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  /* ─── Room badge ──────────────────────────────── */
+  .room-badge {
+    @apply flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs cursor-pointer transition-all;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .room-badge:hover { border-color: var(--accent); }
+  .room-badge .code {
+    @apply font-medium;
+    color: var(--accent);
+    letter-spacing: 1.5px;
+  }
+
+  /* ─── Phase tabs ──────────────────────────────── */
+  .phase-tab {
+    @apply py-[7px] px-[18px] rounded-full border-0 bg-transparent text-[13px] cursor-pointer transition-all;
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .phase-tab.active {
+    @apply font-medium;
+    background: var(--accent);
+    color: #0f0f13;
+  }
+
+  /* ─── Timer SVG ───────────────────────────────── */
+  .timer-track {
+    fill: none;
+    stroke-width: 4;
+    stroke: var(--surface-2);
+  }
+  .timer-progress {
+    fill: none;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke: var(--accent);
+    filter: drop-shadow(0 0 8px var(--accent));
+    transition: stroke-dashoffset 1s linear, stroke var(--transition);
+  }
+
+  /* ─── Timer control buttons ───────────────────── */
+  .btn-play-pause {
+    @apply w-[60px] h-[60px] rounded-full flex items-center justify-center border-0 cursor-pointer text-[22px] transition-all;
+    background: var(--accent);
+    color: #0f0f13;
+  }
+  .btn-play-pause:hover {
+    transform: scale(1.06);
+    box-shadow: 0 8px 28px var(--accent-glow);
+  }
+  .btn-small {
+    @apply w-10 h-10 rounded-full flex items-center justify-center cursor-pointer text-[15px] transition-all;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .btn-small:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* ─── Panel timer atmospheric glow ───────────── */
+  .panel-timer::before {
+    content: '';
+    @apply absolute inset-0 pointer-events-none;
+    background: radial-gradient(ellipse at 50% 50%, var(--accent-glow) 0%, transparent 70%);
+    transition: background var(--transition);
+  }
+
+  /* ─── App screen visibility (toggled by JS) ───── */
+  #screen-app         { display: none; }
+  #screen-app.active  { @apply flex; }
+
+  /* ─── Right panel collapse (toggled by JS) ────── */
+  .panel-right {
+    transition: width var(--transition), opacity var(--transition);
+  }
+  .panel-right.collapsed {
+    width: 0;
+    opacity: 0;
+  }
+
+  /* ─── Modal (toggled by JS) ───────────────────── */
+  .modal-overlay      { display: none; }
+  .modal-overlay.open { @apply flex; }
+
+  /* ─── Spotify presets ─────────────────────────── */
+  .spotify-preset {
+    @apply flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer text-xs text-left transition-all;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .spotify-preset:hover {
+    background: var(--surface-2);
+    border-color: hsl(145, 55%, 45%);
+    color: hsl(145, 55%, 65%);
+  }
+  .spotify-preset.active {
+    background: rgba(29, 185, 84, 0.1);
+    border-color: rgba(29, 185, 84, 0.4);
+    color: #1DB954;
+  }
+
+  /* ─── Reaction buttons ────────────────────────── */
+  .reaction-btn {
+    @apply rounded-[6px] px-2 py-1 text-base cursor-pointer transition-all;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .reaction-btn:hover {
+    transform: scale(1.2);
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  /* ─── User list (rendered by JS) ─────────────── */
+  .user-item {
+    @apply flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all;
+  }
+  .user-item:hover { background: var(--surface-2); }
+
+  .user-avatar {
+    @apply w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-medium shrink-0;
+  }
+  .user-info { @apply flex-1 min-w-0; }
+
+  .user-name {
+    @apply text-[13px] font-normal truncate;
+  }
+  .user-name.me::after {
+    content: ' (tú)';
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .user-status-text {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .status-dot { @apply w-[7px] h-[7px] rounded-full shrink-0; }
+  .status-connected { background: hsl(145, 55%, 60%); }
+  .status-studying  { background: var(--accent); box-shadow: 0 0 6px var(--accent); @apply animate-blink; }
+  .status-break     { background: hsl(195, 65%, 60%); }
+  .status-away      { background: hsl(40, 50%, 55%); }
+
+  /* ─── Chat scrollbar ──────────────────────────── */
+  .chat-messages::-webkit-scrollbar       { width: 3px; }
+  .chat-messages::-webkit-scrollbar-track { background: transparent; }
+  .chat-messages::-webkit-scrollbar-thumb { border-radius: 10px; background: var(--border); }
+
+  /* ─── Chat messages (rendered by JS) ─────────── */
+  .chat-msg          { @apply flex flex-col gap-0.5 animate-fade-in-fast; }
+  .chat-msg-header   { @apply flex items-baseline gap-1.5; }
+  .chat-msg-name     { @apply text-[11px] font-medium; }
+  .chat-msg-time     { font-size: 10px; color: var(--text-muted); }
+  .chat-msg-text     { @apply text-[13px] leading-relaxed break-words; color: var(--text-dim); }
+  .chat-msg.mine .chat-msg-text { color: var(--text); }
+
+  /* ─── Chat input ──────────────────────────────── */
+  .chat-input { resize: none; min-height: 36px; max-height: 80px; }
+  .chat-input:focus          { border-color: var(--accent); }
+  .chat-input::placeholder   { color: var(--text-muted); opacity: 0.5; }
+
+  /* ─── Toast (created by JS) ───────────────────── */
+  .toast {
+    @apply rounded-full px-5 py-2.5 text-[13px] whitespace-nowrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    animation:
+      toastIn  0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+      toastOut 0.3s ease 3s both;
+  }
+
+  /* ─── Floating reactions (created by JS) ─────── */
+  .reaction-float  { @apply absolute bottom-0 text-[26px] animate-float-up; }
+  .reaction-label  {
+    @apply absolute text-[9px] whitespace-nowrap;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--text-muted);
+  }
+
+  /* ─── Responsive ──────────────────────────────── */
+  @media (max-width: 768px) {
+    .panel-users { @apply hidden; }
+
+    .panel-right {
+      @apply fixed bottom-0 right-0 z-50 w-full border-0 border-t h-[60vh];
+      border-top-color: var(--border);
+      background: var(--bg);
+      transform: translateY(100%);
+      transition: transform var(--transition);
+    }
+    .panel-right.mobile-open { transform: translateY(0); }
+    .panel-right.collapsed   { @apply w-full opacity-100; transform: translateY(100%); }
+  }
+}

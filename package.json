@@ -5,7 +5,9 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "dev": "nodemon server/server.js"
+    "dev": "concurrently \"nodemon server/server.js\" \"tailwindcss -i ./client/src/styles.css -o ./client/public/styles.css --watch\"",
+    "build:css": "tailwindcss -i ./client/src/styles.css -o ./client/public/styles.css --minify",
+    "build": "npm run build:css"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -13,6 +15,10 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "autoprefixer": "^10.5.0",
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.1",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19"
   }
 }
