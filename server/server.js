@@ -28,6 +28,142 @@ app.use(express.static(path.join(__dirname, '../client/public')));
 // ─── Estado en memoria de las salas ──────────────────────────────────────────
 const rooms = {};
 
+function decodeHtmlEntities(value = '') {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function stripTags(value = '') {
+  return decodeHtmlEntities(value.replace(/<[^>]+>/g, '')).trim();
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchSpotifyOEmbed(itemType, spotifyId) {
+  const pageUrl = `https://open.spotify.com/${itemType}/${spotifyId}`;
+  const response = await fetchWithTimeout(
+    `https://open.spotify.com/oembed?url=${encodeURIComponent(pageUrl)}&format=json`,
+    {},
+    3500
+  );
+  if (!response.ok) throw new Error(`Spotify oEmbed ${response.status}`);
+  return response.json();
+}
+
+function getSpotifyPageUrl(spotifyUrl, itemType, spotifyId) {
+  if (typeof spotifyUrl !== 'string' || !spotifyUrl.startsWith('http')) {
+    return `https://open.spotify.com/${itemType}/${spotifyId}`;
+  }
+
+  try {
+    const url = new URL(spotifyUrl);
+    url.pathname = `/${itemType}/${spotifyId}`;
+    return url.toString();
+  } catch {
+    return `https://open.spotify.com/${itemType}/${spotifyId}`;
+  }
+}
+
+function buildTrackItem({ spotifyId, title, artists = [], artworkUrl = '', addedBy, sourceTitle = '' }) {
+  return {
+    id: uuidv4(),
+    type: 'track',
+    spotifyId,
+    spotifyUri: `spotify:track:${spotifyId}`,
+    embedUrl: `https://open.spotify.com/embed/track/${spotifyId}`,
+    title: title || 'Canción de Spotify',
+    artists,
+    artworkUrl,
+    sourceTitle,
+    addedBy,
+  };
+}
+
+async function resolveTrackItem(spotifyId, addedBy) {
+  let title = 'Canción de Spotify';
+  let artists = [];
+  let artworkUrl = '';
+
+  try {
+    const data = await fetchSpotifyOEmbed('track', spotifyId);
+    title = data.title || title;
+    artworkUrl = data.thumbnail_url || artworkUrl;
+
+    const parts = title.split(' by ');
+    if (parts.length > 1) {
+      title = parts.shift().trim() || title;
+      artists = parts.join(' by ').split(',').map(a => a.trim()).filter(Boolean);
+    }
+  } catch {}
+
+  return buildTrackItem({ spotifyId, title, artists, artworkUrl, addedBy });
+}
+
+function extractPlaylistTracks(html, addedBy, sourceTitle = '') {
+  const trackHrefRe = /href="\/track\/([a-zA-Z0-9]+)"/g;
+  const seen = new Set();
+  const tracks = [];
+
+  for (const match of html.matchAll(trackHrefRe)) {
+    const spotifyId = match[1];
+    if (seen.has(spotifyId)) continue;
+    seen.add(spotifyId);
+
+    const slice = html.slice(Math.max(0, match.index - 500), Math.min(html.length, match.index + 2000));
+    const titleMatch = slice.match(
+      new RegExp(`href="\\/track\\/${spotifyId}"[^>]*>[\\s\\S]*?data-encore-id="listRowTitle"[^>]*>[\\s\\S]*?<span[^>]*>([^<]+)<\\/span>`)
+    );
+    const title = decodeHtmlEntities(
+      titleMatch?.[1]
+      || slice.match(/aria-label="([^"]+)"/)?.[1]
+      || slice.match(/--encore-line-clamp:1">([^<]+)</)?.[1]
+      || 'Canción de Spotify'
+    );
+    const artworkUrl = slice.match(/src="(https:\/\/i\.scdn\.co\/image\/[^"]+)"/)?.[1] || '';
+    const artists = [...slice.matchAll(/href="\/artist\/[^"]+">([^<]+)<\/a>/g)]
+      .map((artistMatch) => stripTags(artistMatch[1]))
+      .filter(Boolean);
+
+    tracks.push(buildTrackItem({ spotifyId, title, artists, artworkUrl, addedBy, sourceTitle }));
+  }
+
+  return tracks;
+}
+
+async function resolvePlaylistItems(spotifyId, addedBy, spotifyUrl) {
+  let sourceTitle = 'Playlist de Spotify';
+
+  try {
+    const data = await fetchSpotifyOEmbed('playlist', spotifyId);
+    sourceTitle = data.title || sourceTitle;
+  } catch {}
+
+  const response = await fetchWithTimeout(getSpotifyPageUrl(spotifyUrl, 'playlist', spotifyId), {
+    headers: {
+      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36'
+    }
+  }, 12000);
+  if (!response.ok) throw new Error(`Spotify playlist ${response.status}`);
+
+  const html = await response.text();
+  const tracks = extractPlaylistTracks(html, addedBy, sourceTitle);
+  if (!tracks.length) throw new Error('Playlist sin canciones resolubles');
+  return tracks;
+}
+
 function getPublicRooms() {
   return Object.values(rooms)
     .filter(r => Object.keys(r.users).length > 0 && Object.keys(r.users).length < 8)
@@ -325,38 +461,33 @@ io.on('connection', (socket) => {
   });
 
   // ── Cola de música ────────────────────────────────────────────────────────
-  socket.on('queue:add', async ({ spotifyUrl }) => {
+  socket.on('queue:add', async ({ spotifyUrl }, ack = () => {}) => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
-    if (!room) return;
+    if (!room) return ack({ error: 'Sala no encontrada' });
 
     const trackRe    = /(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)([a-zA-Z0-9]+)/;
     const playlistRe = /(?:spotify:playlist:|open\.spotify\.com\/(?:embed\/)?playlist\/)([a-zA-Z0-9]+)/;
     const tM = spotifyUrl.match(trackRe);
     const pM = spotifyUrl.match(playlistRe);
-    if (!tM && !pM) return;
+    if (!tM && !pM) return ack({ error: 'URL de Spotify no válida' });
 
-    const spotifyId = (tM || pM)[1];
-    const itemType  = tM ? 'track' : 'playlist';
-    const pageUrl   = `https://open.spotify.com/${itemType}/${spotifyId}`;
-    const embedUrl  = `https://open.spotify.com/embed/${itemType}/${spotifyId}`;
-
-    let title = itemType === 'track' ? 'Canción de Spotify' : 'Playlist de Spotify';
     try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 3000);
-      const r = await fetch(
-        `https://open.spotify.com/oembed?url=${encodeURIComponent(pageUrl)}&format=json`,
-        { signal: ctrl.signal }
-      );
-      clearTimeout(timer);
-      if (r.ok) { const d = await r.json(); title = d.title || title; }
-    } catch {}
+      const spotifyId = (tM || pM)[1];
+      const items = tM
+        ? [await resolveTrackItem(spotifyId, socket.data.username)]
+        : await resolvePlaylistItems(spotifyId, socket.data.username, spotifyUrl);
 
-    const item = { id: uuidv4(), embedUrl, title, type: itemType, addedBy: socket.data.username };
-    room.queue.push(item);
-    if (room.playback.trackIndex === -1) room.playback.trackIndex = 0;
-    io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+      const wasEmpty = room.queue.length === 0;
+      room.queue.push(...items);
+      if (wasEmpty && room.queue.length) room.playback.trackIndex = 0;
+
+      io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+      ack({ ok: true, added: items.length, type: tM ? 'track' : 'playlist' });
+    } catch (error) {
+      console.error('[QUEUE] Error añadiendo contenido de Spotify:', error.message);
+      ack({ error: 'No se pudo leer esa canción o playlist de Spotify' });
+    }
   });
 
   socket.on('queue:remove', ({ id }) => {
@@ -407,7 +538,6 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || !room.queue.length) return;
     if (room.playback.trackIndex < room.queue.length - 1) room.playback.trackIndex++;
-    room.playback.playing = false;
     io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
   });
 
@@ -416,7 +546,6 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || !room.queue.length) return;
     if (room.playback.trackIndex > 0) room.playback.trackIndex--;
-    room.playback.playing = false;
     io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
   });
 
@@ -425,7 +554,6 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || index < 0 || index >= room.queue.length) return;
     room.playback.trackIndex = index;
-    room.playback.playing = false;
     io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
   });
 

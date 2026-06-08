@@ -92,9 +92,6 @@
     </div>
 
     <div class="flex items-center gap-2 md:justify-end md:px-5 md:py-4">
-      <button class="icon-btn" id="btn-toggle-chat" onclick="toggleChat()" title="Chat">
-        <span class="material-symbols-rounded text-[18px]">chat</span>
-      </button>
       <button class="icon-btn" onclick="openSettings()" title="Configurar temporizador">
         <span class="material-symbols-rounded text-[18px]">settings</span>
       </button>
@@ -190,18 +187,21 @@
       </div>
 
       <!-- ── Pestaña Música ──────────────────────────── -->
-      <div id="right-music" class="flex-1 flex flex-col overflow-hidden">
+        <div id="right-music" class="flex-1 flex flex-col overflow-hidden">
 
-        <!-- Reproduciendo ahora -->
-        <div class="p-3 border-b shrink-0" style="border-color:var(--border)">
-          <p class="text-[10px] font-medium uppercase tracking-[1.5px] mb-2" style="color:var(--text-muted)">Reproduciendo</p>
+          <div id="spotify-controller-host" aria-hidden="true"
+               style="position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden"></div>
 
-          <!-- Iframe de la canción actual -->
-          <div id="now-playing-frame" class="rounded-[10px] overflow-hidden mb-2" style="background:var(--surface-2)">
-            <div style="height:72px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;gap:6px">
-              <span class="material-symbols-rounded text-[16px]">music_off</span> Cola vacía — añade canciones abajo
+          <!-- Reproduciendo ahora -->
+          <div class="p-3 border-b shrink-0" style="border-color:var(--border)">
+            <p class="text-[10px] font-medium uppercase tracking-[1.5px] mb-2" style="color:var(--text-muted)">Reproduciendo</p>
+
+            <!-- Tarjeta de la canción actual -->
+            <div id="now-playing-frame" class="rounded-[10px] overflow-hidden mb-2" style="background:var(--surface-2)">
+              <div style="height:72px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;gap:6px">
+                <span class="material-symbols-rounded text-[16px]">music_off</span> Cola vacía — añade canciones abajo
+              </div>
             </div>
-          </div>
 
           <!-- Info + controles -->
           <div class="flex items-center gap-2">
@@ -223,7 +223,7 @@
           </div>
 
           <!-- Aviso Spotify -->
-          <p class="text-[10px] mt-2 flex items-center gap-1" style="color:var(--text-muted)">
+          <p class="text-[10px] mt-2 flex items-center gap-1" id="spotify-login-hint" style="color:var(--text-muted)">
             <span class="material-symbols-rounded text-[12px]">info</span>
             Inicia sesión en <a href="https://open.spotify.com" target="_blank" style="color:#1DB954;margin-left:2px">Spotify</a>&nbsp;para escuchar completo.
           </p>
