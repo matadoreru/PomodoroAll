@@ -190,53 +190,92 @@
       </div>
 
       <!-- ── Pestaña Música ──────────────────────────── -->
-      <div id="right-music" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+      <div id="right-music" class="flex-1 flex flex-col overflow-hidden">
 
-        <!-- Aviso de login -->
-        <div class="flex items-start gap-2 rounded-lg px-3 py-2.5 text-[11px]"
-             style="background:rgba(29,185,84,0.08);color:var(--text-muted)">
-          <span class="material-symbols-rounded text-[14px] shrink-0 mt-px">info</span>
-          <span>Para escuchar canciones completas, inicia sesión en
-            <a href="https://open.spotify.com" target="_blank" style="color:#1DB954">Spotify</a>
-            en este navegador.</span>
-        </div>
+        <!-- Reproduciendo ahora -->
+        <div class="p-3 border-b shrink-0" style="border-color:var(--border)">
+          <p class="text-[10px] font-medium uppercase tracking-[1.5px] mb-2" style="color:var(--text-muted)">Reproduciendo</p>
 
-        <!-- Widget -->
-        <div class="rounded-[10px] overflow-hidden" style="background:var(--surface-2)"
-             id="spotify-widget-frame">
-          <div class="h-24 flex items-center justify-center text-xs" style="color:var(--text-muted)">
-            Elige una playlist ↓
+          <!-- Iframe de la canción actual -->
+          <div id="now-playing-frame" class="rounded-[10px] overflow-hidden mb-2" style="background:var(--surface-2)">
+            <div style="height:72px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;gap:6px">
+              <span class="material-symbols-rounded text-[16px]">music_off</span> Cola vacía — añade canciones abajo
+            </div>
           </div>
+
+          <!-- Info + controles -->
+          <div class="flex items-center gap-2">
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-medium truncate" id="now-playing-title">—</div>
+              <div class="text-[10px]" style="color:var(--text-muted)" id="now-playing-added-by"></div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button class="btn-small" id="btn-queue-prev" onclick="queuePrev()" title="Anterior" disabled>
+                <span class="material-symbols-rounded text-[16px]">skip_previous</span>
+              </button>
+              <button class="btn-play-pause w-10 h-10" id="btn-queue-play" onclick="queueTogglePlay()">
+                <span class="material-symbols-rounded">play_arrow</span>
+              </button>
+              <button class="btn-small" id="btn-queue-skip" onclick="queueSkip()" title="Siguiente" disabled>
+                <span class="material-symbols-rounded text-[16px]">skip_next</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Aviso Spotify -->
+          <p class="text-[10px] mt-2 flex items-center gap-1" style="color:var(--text-muted)">
+            <span class="material-symbols-rounded text-[12px]">info</span>
+            Inicia sesión en <a href="https://open.spotify.com" target="_blank" style="color:#1DB954;margin-left:2px">Spotify</a>&nbsp;para escuchar completo.
+          </p>
         </div>
 
-        <!-- Presets 2×2 -->
-        <div class="grid grid-cols-2 gap-1.5">
-          <button class="spotify-preset" onclick="loadSpotifyPlaylist('lofi')" id="preset-lofi">
-            <span class="text-[15px]">🌧</span> Lo-Fi Hip Hop
-          </button>
-          <button class="spotify-preset" onclick="loadSpotifyPlaylist('synthwave')" id="preset-synthwave">
-            <span class="text-[15px]">🌆</span> Synthwave Focus
-          </button>
-          <button class="spotify-preset" onclick="loadSpotifyPlaylist('classical')" id="preset-classical">
-            <span class="text-[15px]">🎻</span> Clásica para estudiar
-          </button>
-          <button class="spotify-preset" onclick="loadSpotifyPlaylist('jazz')" id="preset-jazz">
-            <span class="text-[15px]">☕</span> Jazz tranquilo
+        <!-- Cabecera de la cola -->
+        <div class="flex items-center justify-between px-4 py-2 border-b shrink-0" style="border-color:var(--border)">
+          <span class="text-[10px] font-medium uppercase tracking-[1.5px]" style="color:var(--text-muted)">
+            Cola <span id="queue-count"></span>
+          </span>
+          <button class="flex items-center gap-1 text-[11px] transition-colors"
+                  style="background:none;border:none;cursor:pointer;color:var(--text-muted)"
+                  onmouseover="this.style.color='hsl(0,70%,65%)'" onmouseout="this.style.color='var(--text-muted)'"
+                  onclick="queueClear()" title="Borrar toda la cola">
+            <span class="material-symbols-rounded text-[14px]">delete_sweep</span>
+            Borrar todo
           </button>
         </div>
 
-        <!-- Playlist personalizada -->
-        <div class="flex gap-1.5">
-          <input
-            id="custom-playlist-input"
-            type="text"
-            placeholder="Pega URL o ID de tu playlist…"
-            class="form-input flex-1 py-2 text-xs"
-            onkeydown="if(event.key==='Enter') loadCustomPlaylist()"
-          />
-          <button class="btn btn-secondary shrink-0 px-3 py-2" onclick="loadCustomPlaylist()">
-            <span class="material-symbols-rounded text-[16px]">send</span>
-          </button>
+        <!-- Lista de canciones -->
+        <div class="flex-1 overflow-y-auto" id="queue-list">
+          <div class="text-center py-6 text-[12px]" style="color:var(--text-muted)">La cola está vacía.</div>
+        </div>
+
+        <!-- Añadir a la cola -->
+        <div class="border-t p-3 shrink-0 flex flex-col gap-2" style="border-color:var(--border)">
+          <div class="flex gap-1.5">
+            <input id="queue-input" type="text"
+                   placeholder="URL de canción o playlist de Spotify…"
+                   class="form-input flex-1 py-2 text-xs"
+                   onkeydown="if(event.key==='Enter') queueAdd()" />
+            <button id="btn-queue-add"
+                    class="btn btn-primary shrink-0 px-3 py-2 flex items-center justify-center"
+                    onclick="queueAdd()">
+              <span class="material-symbols-rounded text-[16px]">add</span>
+            </button>
+          </div>
+          <!-- Accesos rápidos -->
+          <div class="grid grid-cols-4 gap-1">
+            <button class="quick-preset-btn" onclick="queueAddPreset('lofi')" title="Lo-Fi Beats">
+              <span>🌧</span><span>Lo-Fi</span>
+            </button>
+            <button class="quick-preset-btn" onclick="queueAddPreset('synthwave')" title="Synthwave Focus">
+              <span>🌆</span><span>Synth</span>
+            </button>
+            <button class="quick-preset-btn" onclick="queueAddPreset('classical')" title="Clásica para estudiar">
+              <span>🎻</span><span>Clásica</span>
+            </button>
+            <button class="quick-preset-btn" onclick="queueAddPreset('jazz')" title="Jazz Vibes">
+              <span>☕</span><span>Jazz</span>
+            </button>
+          </div>
         </div>
       </div>
 

@@ -205,23 +205,35 @@
   .modal-overlay      { display: none; }
   .modal-overlay.open { @apply flex; }
 
-  /* ─── Spotify presets ─────────────────────────── */
-  .spotify-preset {
-    @apply flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer text-xs text-left transition-all;
+  /* ─── Cola de música ─────────────────────────── */
+  .queue-item {
+    @apply flex items-center gap-2.5 px-4 py-2.5 cursor-pointer select-none transition-all;
+  }
+  .queue-item:hover { background: var(--surface-2); }
+  .queue-item.current { background: var(--accent-glow); }
+  .queue-item.current .queue-item-icon { color: var(--accent); }
+  .queue-item-icon { color: var(--text-muted); flex-shrink: 0; }
+
+  .queue-remove-btn {
+    @apply w-6 h-6 rounded flex items-center justify-center transition-all opacity-0 shrink-0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+  }
+  .queue-item:hover .queue-remove-btn { opacity: 1; }
+  .queue-remove-btn:hover { color: hsl(0, 70%, 65%); }
+
+  .quick-preset-btn {
+    @apply flex flex-col items-center gap-0.5 py-2 rounded-lg text-[10px] cursor-pointer transition-all;
+    background: var(--surface-2);
     border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text);
+    color: var(--text-muted);
     font-family: 'DM Sans', sans-serif;
   }
-  .spotify-preset:hover {
-    background: var(--surface-2);
+  .quick-preset-btn:hover {
     border-color: hsl(145, 55%, 45%);
     color: hsl(145, 55%, 65%);
-  }
-  .spotify-preset.active {
-    background: rgba(29, 185, 84, 0.1);
-    border-color: rgba(29, 185, 84, 0.4);
-    color: #1DB954;
   }
 
   /* ─── Reaction buttons ────────────────────────── */

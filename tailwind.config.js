@@ -40,6 +40,10 @@ module.exports = {
           '0%, 100%': { opacity: '1' },
           '50%':      { opacity: '0.4' },
         },
+        spin: {
+          from: { transform: 'rotate(0deg)' },
+          to:   { transform: 'rotate(360deg)' },
+        },
       },
       animation: {
         'fade-in':      'fadeIn 0.6s ease both',
@@ -48,6 +52,7 @@ module.exports = {
         'float-up':     'floatUp 2.5s ease-out forwards',
         'pulse-glow':   'pulseGlow 3s ease-in-out infinite',
         'blink':        'blink 2s ease infinite',
+        'spin':         'spin 1s linear infinite',
       },
     },
   },

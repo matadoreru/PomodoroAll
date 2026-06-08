@@ -5,11 +5,11 @@ const SERVER_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:3001'
   : window.location.origin;
 
-const SPOTIFY_PLAYLISTS = {
-  lofi:      '37i9dQZF1DWWQbjWnn4C31',
-  synthwave: '37i9dQZF1DX9RwfGbeGQwP',
-  classical: '37i9dQZF1DWWEJlAGA9gs0',
-  jazz:      '37i9dQZF1DXbITWG1ZJKYt',
+const QUEUE_PRESETS = {
+  lofi:      { id: '37i9dQZF1DWWQbjWnn4C31', label: 'Lo-Fi Beats',           emoji: '🌧' },
+  synthwave: { id: '37i9dQZF1DX9RwfGbeGQwP', label: 'Synthwave Focus',        emoji: '🌆' },
+  classical: { id: '37i9dQZF1DWWEJlAGA9gs0', label: 'Clásica para estudiar',  emoji: '🎻' },
+  jazz:      { id: '37i9dQZF1DXbITWG1ZJKYt', label: 'Jazz Vibes',             emoji: '☕' },
 };
 
 // ─── Estado de la aplicación ─────────────────────────────────────────────────
@@ -24,8 +24,10 @@ let pomodoroCount = 0;
 let totalStudySeconds = 0;
 let localTickInterval = null;
 let chatOpen = true;
-let currentSpotifyPreset = null;
 let lobbyRefreshInterval = null;
+let currentQueue = [];
+let currentPlayback = { trackIndex: -1, playing: false };
+let renderedTrackIndex = -2;
 
 let PHASE_DURATIONS = {
   study:        25 * 60,
@@ -121,9 +123,31 @@ function connectSocket() {
     syncSettingsInputs();
   });
 
-  socket.on('music:sync', ({ playlistId, preset, username }) => {
-    _setSpotifyWidget(playlistId || null, preset || null);
-    if (username !== myUsername) showToast(`${escapeHtml(username)} cambió la playlist`);
+  socket.on('queue:update', ({ queue, playback }) => {
+    currentQueue   = queue;
+    currentPlayback = playback;
+    renderQueueList();
+    renderNowPlaying();
+    updatePlaybackButtons();
+  });
+
+  socket.on('queue:playback', ({ playback, username }) => {
+    const prevIdx = currentPlayback.trackIndex;
+    currentPlayback = playback;
+    if (playback.trackIndex !== prevIdx) {
+      renderQueueList();
+      renderNowPlaying();
+      if (username !== myUsername)
+        showToast(`${escapeHtml(username)} cambió la canción`);
+    } else {
+      updatePlaybackButtons();
+      renderQueueList();
+      if (username !== myUsername)
+        showToast(playback.playing
+          ? `${escapeHtml(username)} reanudó la música`
+          : `${escapeHtml(username)} pausó la música`);
+    }
+    tryControlSpotifyIframe(playback.playing);
   });
 }
 
@@ -174,14 +198,19 @@ function handleJoin() {
 }
 
 // ─── Entrar a la app ─────────────────────────────────────────────────────────
-function enterApp({ roomId, name, timer, users, settings, music }, messages = []) {
+function enterApp({ roomId, name, timer, users, settings, queue, playback }, messages = []) {
   stopLobbyRefresh();
   if (settings) {
     PHASE_DURATIONS.study       = settings.study;
     PHASE_DURATIONS.short_break = settings.short_break;
     PHASE_DURATIONS.long_break  = settings.long_break;
   }
-  if (music?.playlistId) _setSpotifyWidget(music.playlistId, music.preset || null);
+  currentQueue    = queue    || [];
+  currentPlayback = playback || { trackIndex: -1, playing: false };
+  renderedTrackIndex = -2;
+  renderQueueList();
+  renderNowPlaying();
+  updatePlaybackButtons();
   currentRoomId = roomId;
 
   document.getElementById('header-room-name').textContent = name || roomId;
@@ -387,36 +416,148 @@ function showFloatingReaction(emoji, from) {
   setTimeout(() => el.remove(), 2600);
 }
 
-// ─── Spotify ─────────────────────────────────────────────────────────────────
-function _setSpotifyWidget(playlistId, preset) {
-  document.querySelectorAll('.spotify-preset').forEach(b => b.classList.remove('active'));
-  currentSpotifyPreset = preset || null;
-  if (preset) document.getElementById(`preset-${preset}`)?.classList.add('active');
-  if (!playlistId) {
-    document.getElementById('spotify-widget-frame').innerHTML = `
-      <div style="height:80px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;">
-        Elige una playlist ↓
-      </div>`;
+// ─── Cola de música ───────────────────────────────────────────────────────────
+async function queueAdd() {
+  const input = document.getElementById('queue-input');
+  const val   = input.value.trim();
+  if (!val || !socket || !currentRoomId) return;
+
+  const trackRe    = /(?:track[:/])([a-zA-Z0-9]+)/;
+  const playlistRe = /(?:playlist[:/])([a-zA-Z0-9]+)/;
+
+  if (!trackRe.test(val) && !playlistRe.test(val)) {
+    showToast('⚠ Pega una URL de canción o playlist de Spotify');
     return;
   }
-  document.getElementById('spotify-widget-frame').innerHTML = `
-    <iframe
-      src="https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0"
-      width="100%" height="352" frameborder="0" allowfullscreen=""
-      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-      loading="lazy"
-    ></iframe>`;
+
+  const btn = document.getElementById('btn-queue-add');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="material-symbols-rounded text-[16px]" style="animation:spin 1s linear infinite">progress_activity</span>'; }
+
+  socket.emit('queue:add', { spotifyUrl: val });
+  input.value = '';
+
+  if (btn) setTimeout(() => { btn.disabled = false; btn.innerHTML = '<span class="material-symbols-rounded text-[16px]">add</span>'; }, 500);
 }
 
-function loadSpotifyPlaylist(preset) {
-  if (currentSpotifyPreset === preset) {
-    _setSpotifyWidget(null, null);
-    if (socket && currentRoomId) socket.emit('music:change', { playlistId: null, preset: null });
+function queueAddPreset(key) {
+  const p = QUEUE_PRESETS[key];
+  if (!p || !socket || !currentRoomId) return;
+  socket.emit('queue:add', { spotifyUrl: `https://open.spotify.com/playlist/${p.id}` });
+  showToast(`Añadiendo ${p.label}…`);
+}
+
+function queueRemove(id) {
+  if (!socket || !currentRoomId) return;
+  socket.emit('queue:remove', { id });
+}
+
+function queueClear() {
+  if (!socket || !currentRoomId) return;
+  if (currentQueue.length === 0) return;
+  socket.emit('queue:clear');
+}
+
+function queueTogglePlay() {
+  if (!socket || !currentRoomId) return;
+  socket.emit(currentPlayback.playing ? 'queue:pause' : 'queue:play');
+}
+
+function queueSkip() {
+  if (!socket || !currentRoomId) return;
+  socket.emit('queue:skip');
+}
+
+function queuePrev() {
+  if (!socket || !currentRoomId) return;
+  socket.emit('queue:prev');
+}
+
+function queueJump(index) {
+  if (!socket || !currentRoomId) return;
+  socket.emit('queue:jump', { index });
+}
+
+function tryControlSpotifyIframe(play) {
+  const iframe = document.getElementById('spotify-iframe');
+  if (!iframe) return;
+  try {
+    iframe.contentWindow.postMessage(
+      JSON.stringify({ method: play ? 'play' : 'pause' }),
+      'https://open.spotify.com'
+    );
+  } catch {}
+}
+
+function renderNowPlaying() {
+  const frame     = document.getElementById('now-playing-frame');
+  const titleEl   = document.getElementById('now-playing-title');
+  const addedByEl = document.getElementById('now-playing-added-by');
+  if (!frame) return;
+
+  const item = currentQueue[currentPlayback.trackIndex];
+
+  if (currentPlayback.trackIndex !== renderedTrackIndex) {
+    renderedTrackIndex = currentPlayback.trackIndex;
+    if (!item) {
+      frame.innerHTML = `<div style="height:72px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;gap:6px">
+        <span class="material-symbols-rounded text-[16px]">music_off</span> Cola vacía — añade canciones abajo
+      </div>`;
+    } else {
+      const h = item.type === 'playlist' ? 352 : 80;
+      frame.innerHTML = `<iframe id="spotify-iframe"
+        src="${item.embedUrl}?utm_source=generator&theme=0"
+        width="100%" height="${h}" frameborder="0" allowfullscreen=""
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy"></iframe>`;
+    }
+    if (titleEl)   titleEl.textContent   = item?.title || '—';
+    if (addedByEl) addedByEl.textContent = item ? `Añadido por ${escapeHtml(item.addedBy)}` : '';
+  }
+}
+
+function renderQueueList() {
+  const el = document.getElementById('queue-list');
+  const countEl = document.getElementById('queue-count');
+  if (!el) return;
+
+  if (countEl) countEl.textContent = currentQueue.length ? `(${currentQueue.length})` : '';
+
+  if (!currentQueue.length) {
+    el.innerHTML = `<div class="text-center py-6 text-[12px]" style="color:var(--text-muted)">
+      La cola está vacía.
+    </div>`;
     return;
   }
-  const playlistId = SPOTIFY_PLAYLISTS[preset];
-  _setSpotifyWidget(playlistId, preset);
-  if (socket && currentRoomId) socket.emit('music:change', { playlistId, preset });
+
+  el.innerHTML = currentQueue.map((item, i) => {
+    const isCurrent = i === currentPlayback.trackIndex;
+    const icon = isCurrent && currentPlayback.playing
+      ? 'volume_up'
+      : item.type === 'playlist' ? 'queue_music' : 'music_note';
+    return `<div class="queue-item${isCurrent ? ' current' : ''}" onclick="queueJump(${i})">
+      <span class="material-symbols-rounded text-[15px] queue-item-icon">${icon}</span>
+      <div class="flex flex-col flex-1 min-w-0">
+        <span class="text-[13px] truncate" style="color:${isCurrent ? 'var(--accent)' : 'var(--text)'}">${escapeHtml(item.title)}</span>
+        <span class="text-[10px]" style="color:var(--text-muted)">${escapeHtml(item.addedBy)} · ${item.type === 'playlist' ? 'playlist' : 'canción'}</span>
+      </div>
+      <button class="queue-remove-btn" onclick="event.stopPropagation();queueRemove('${item.id}')" title="Eliminar">
+        <span class="material-symbols-rounded text-[14px]">close</span>
+      </button>
+    </div>`;
+  }).join('');
+
+  const cur = el.querySelector('.queue-item.current');
+  if (cur) cur.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function updatePlaybackButtons() {
+  const btn = document.getElementById('btn-queue-play');
+  if (btn) btn.innerHTML = `<span class="material-symbols-rounded">${currentPlayback.playing ? 'pause' : 'play_arrow'}</span>`;
+
+  const skip = document.getElementById('btn-queue-skip');
+  const prev = document.getElementById('btn-queue-prev');
+  if (skip) skip.disabled = !currentQueue.length || currentPlayback.trackIndex >= currentQueue.length - 1;
+  if (prev) prev.disabled = currentPlayback.trackIndex <= 0;
 }
 
 // ─── Pestañas panel derecho ───────────────────────────────────────────────────
@@ -440,30 +581,6 @@ function toggleChat() {
   } else {
     switchRightTab(chatVisible ? 'music' : 'chat');
   }
-}
-
-// ─── Playlist personalizada ───────────────────────────────────────────────────
-function loadCustomPlaylist() {
-  const input = document.getElementById('custom-playlist-input');
-  const value = input.value.trim();
-  if (!value) return;
-
-  // Acepta URL completa, URI spotify: o ID directo
-  let id = value;
-  const urlMatch = value.match(/playlist\/([a-zA-Z0-9]+)/);
-  if (urlMatch) id = urlMatch[1];
-  const uriMatch = value.match(/spotify:playlist:([a-zA-Z0-9]+)/);
-  if (uriMatch) id = uriMatch[1];
-
-  if (!/^[a-zA-Z0-9]{10,40}$/.test(id)) {
-    showToast('⚠ Pega una URL o ID válido de Spotify');
-    return;
-  }
-
-  _setSpotifyWidget(id, null);
-  if (socket && currentRoomId) socket.emit('music:change', { playlistId: id, preset: null });
-  input.value = '';
-  showToast('✓ Playlist cargada');
 }
 
 // ─── Modal compartir ──────────────────────────────────────────────────────────

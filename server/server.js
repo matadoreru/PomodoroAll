@@ -65,7 +65,8 @@ function createRoom(roomId, name) {
       pomodoroCount: 0,
     },
     settings,
-    music: { playlistId: null, preset: null },
+    queue: [],
+    playback: { trackIndex: -1, playing: false },
     messages: [],
     createdAt: Date.now()
   };
@@ -174,7 +175,8 @@ io.on('connection', (socket) => {
       timer: getTimerSnapshot(rooms[roomId]),
       users: Object.values(rooms[roomId].users),
       settings: rooms[roomId].settings,
-      music: rooms[roomId].music,
+      queue: rooms[roomId].queue,
+      playback: rooms[roomId].playback,
     });
     io.emit('rooms:update', getPublicRooms());
   });
@@ -219,7 +221,8 @@ io.on('connection', (socket) => {
       users: Object.values(room.users),
       messages: room.messages.slice(-20),
       settings: room.settings,
-      music: room.music,
+      queue: room.queue,
+      playback: room.playback,
     });
     io.emit('rooms:update', getPublicRooms());
   });
@@ -321,14 +324,109 @@ io.on('connection', (socket) => {
     console.log(`[CFG] Sala ${roomId}: estudio=${study}m descanso=${short_break}m largo=${long_break}m`);
   });
 
-  // ── Música compartida ─────────────────────────────────────────────────────
-  socket.on('music:change', ({ playlistId, preset }) => {
+  // ── Cola de música ────────────────────────────────────────────────────────
+  socket.on('queue:add', async ({ spotifyUrl }) => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
     if (!room) return;
-    if (playlistId && !/^[a-zA-Z0-9]{10,40}$/.test(playlistId)) return;
-    room.music = { playlistId: playlistId || null, preset: preset || null };
-    io.to(roomId).emit('music:sync', { ...room.music, username: socket.data.username });
+
+    const trackRe    = /(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)([a-zA-Z0-9]+)/;
+    const playlistRe = /(?:spotify:playlist:|open\.spotify\.com\/(?:embed\/)?playlist\/)([a-zA-Z0-9]+)/;
+    const tM = spotifyUrl.match(trackRe);
+    const pM = spotifyUrl.match(playlistRe);
+    if (!tM && !pM) return;
+
+    const spotifyId = (tM || pM)[1];
+    const itemType  = tM ? 'track' : 'playlist';
+    const pageUrl   = `https://open.spotify.com/${itemType}/${spotifyId}`;
+    const embedUrl  = `https://open.spotify.com/embed/${itemType}/${spotifyId}`;
+
+    let title = itemType === 'track' ? 'Canción de Spotify' : 'Playlist de Spotify';
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const r = await fetch(
+        `https://open.spotify.com/oembed?url=${encodeURIComponent(pageUrl)}&format=json`,
+        { signal: ctrl.signal }
+      );
+      clearTimeout(timer);
+      if (r.ok) { const d = await r.json(); title = d.title || title; }
+    } catch {}
+
+    const item = { id: uuidv4(), embedUrl, title, type: itemType, addedBy: socket.data.username };
+    room.queue.push(item);
+    if (room.playback.trackIndex === -1) room.playback.trackIndex = 0;
+    io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+  });
+
+  socket.on('queue:remove', ({ id }) => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room) return;
+    const idx = room.queue.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    room.queue.splice(idx, 1);
+    if (!room.queue.length) {
+      room.playback = { trackIndex: -1, playing: false };
+    } else if (room.playback.trackIndex >= room.queue.length) {
+      room.playback.trackIndex = room.queue.length - 1;
+      room.playback.playing = false;
+    } else if (idx < room.playback.trackIndex) {
+      room.playback.trackIndex--;
+    }
+    io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+  });
+
+  socket.on('queue:clear', () => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room) return;
+    room.queue = [];
+    room.playback = { trackIndex: -1, playing: false };
+    io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+  });
+
+  socket.on('queue:play', () => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room || room.playback.trackIndex === -1) return;
+    room.playback.playing = true;
+    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+  });
+
+  socket.on('queue:pause', () => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room) return;
+    room.playback.playing = false;
+    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+  });
+
+  socket.on('queue:skip', () => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room || !room.queue.length) return;
+    if (room.playback.trackIndex < room.queue.length - 1) room.playback.trackIndex++;
+    room.playback.playing = false;
+    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+  });
+
+  socket.on('queue:prev', () => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room || !room.queue.length) return;
+    if (room.playback.trackIndex > 0) room.playback.trackIndex--;
+    room.playback.playing = false;
+    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+  });
+
+  socket.on('queue:jump', ({ index }) => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room || index < 0 || index >= room.queue.length) return;
+    room.playback.trackIndex = index;
+    room.playback.playing = false;
+    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
   });
 
   // ── Chat ──────────────────────────────────────────────────────────────────
