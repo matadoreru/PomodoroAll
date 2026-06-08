@@ -63,6 +63,20 @@ async function fetchSpotifyOEmbed(itemType, spotifyId) {
   return response.json();
 }
 
+function getSpotifyPageUrl(spotifyUrl, itemType, spotifyId) {
+  if (typeof spotifyUrl !== 'string' || !spotifyUrl.startsWith('http')) {
+    return `https://open.spotify.com/${itemType}/${spotifyId}`;
+  }
+
+  try {
+    const url = new URL(spotifyUrl);
+    url.pathname = `/${itemType}/${spotifyId}`;
+    return url.toString();
+  } catch {
+    return `https://open.spotify.com/${itemType}/${spotifyId}`;
+  }
+}
+
 function buildTrackItem({ spotifyId, title, artists = [], artworkUrl = '', addedBy, sourceTitle = '' }) {
   return {
     id: uuidv4(),
@@ -129,7 +143,7 @@ function extractPlaylistTracks(html, addedBy, sourceTitle = '') {
   return tracks;
 }
 
-async function resolvePlaylistItems(spotifyId, addedBy) {
+async function resolvePlaylistItems(spotifyId, addedBy, spotifyUrl) {
   let sourceTitle = 'Playlist de Spotify';
 
   try {
@@ -137,7 +151,7 @@ async function resolvePlaylistItems(spotifyId, addedBy) {
     sourceTitle = data.title || sourceTitle;
   } catch {}
 
-  const response = await fetchWithTimeout(`https://open.spotify.com/playlist/${spotifyId}`, {
+  const response = await fetchWithTimeout(getSpotifyPageUrl(spotifyUrl, 'playlist', spotifyId), {
     headers: {
       'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36'
     }
@@ -462,7 +476,7 @@ io.on('connection', (socket) => {
       const spotifyId = (tM || pM)[1];
       const items = tM
         ? [await resolveTrackItem(spotifyId, socket.data.username)]
-        : await resolvePlaylistItems(spotifyId, socket.data.username);
+        : await resolvePlaylistItems(spotifyId, socket.data.username, spotifyUrl);
 
       const wasEmpty = room.queue.length === 0;
       room.queue.push(...items);
