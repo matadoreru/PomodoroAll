@@ -685,6 +685,11 @@ function renderQueueList() {
     const icon = isCurrent && currentPlayback.playing
       ? 'volume_up'
       : (isHidden ? 'visibility_off' : 'music_note');
+    const artwork = item.artworkUrl
+      ? `<img src="${escapeHtml(item.artworkUrl)}" alt="${escapeHtml(item.title)}" class="queue-item-artwork">`
+      : `<div class="queue-item-artwork queue-item-artwork-fallback">
+          <span class="material-symbols-rounded text-[14px]">album</span>
+        </div>`;
     return `<div class="queue-item${isCurrent ? ' current' : ''}${isHidden ? ' hidden-item' : ''}"
       draggable="true"
       ondragstart="queueDragStart(${i})"
@@ -694,7 +699,7 @@ function renderQueueList() {
       onclick="${isHidden ? '' : `queueJump(${i})`}"
       >
       <span class="material-symbols-rounded text-[15px] queue-item-icon" title="Arrastrar">drag_indicator</span>
-      <span class="material-symbols-rounded text-[15px] queue-item-icon">${icon}</span>
+      ${artwork}
       <div class="flex flex-col flex-1 min-w-0">
         <span class="text-[13px] truncate" style="color:${isCurrent ? 'var(--accent)' : 'var(--text)'}">${escapeHtml(item.title)}${isHidden ? ' · oculta' : ''}</span>
         <span class="text-[10px] truncate" style="color:var(--text-muted)">${escapeHtml((item.artists || []).join(', ') || item.addedBy)}${item.sourceTitle ? ` · ${escapeHtml(item.sourceTitle)}` : ''}</span>

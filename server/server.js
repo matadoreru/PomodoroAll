@@ -161,6 +161,34 @@ async function resolveTrackItem(spotifyId, addedBy) {
   return buildTrackItem({ spotifyId, title, artists, artworkUrl, addedBy });
 }
 
+async function enrichTrackItemMetadata(item) {
+  if (!item?.spotifyId) return item;
+  if (item.title !== 'Canción de Spotify' && item.artworkUrl) return item;
+
+  try {
+    const data = await fetchSpotifyOEmbed('track', item.spotifyId);
+    const fullTitle = data.title || item.title;
+    const parts = fullTitle.split(' by ');
+    const title = parts.length > 1 ? parts.shift().trim() || item.title : fullTitle;
+    const artists = parts.length > 0
+      ? parts.join(' by ').split(',').map((artist) => artist.trim()).filter(Boolean)
+      : item.artists;
+
+    return {
+      ...item,
+      title: title || item.title,
+      artists: artists?.length ? artists : item.artists,
+      artworkUrl: data.thumbnail_url || item.artworkUrl,
+    };
+  } catch {
+    return item;
+  }
+}
+
+async function enrichTrackItemsMetadata(items) {
+  return Promise.all(items.map((item) => enrichTrackItemMetadata(item)));
+}
+
 function extractPlaylistTracks(html, addedBy, sourceTitle = '') {
   const trackHrefRe = /href="\/track\/([a-zA-Z0-9]+)"/g;
   const trackUriRe = /spotify:track:([a-zA-Z0-9]+)/g;
@@ -275,7 +303,7 @@ async function resolvePlaylistItems(spotifyId, addedBy, spotifyUrl) {
   }
 
   if (!tracks.length) throw new Error('Playlist sin canciones resolubles');
-  return tracks;
+  return enrichTrackItemsMetadata(tracks);
 }
 
 function getPublicRooms() {
