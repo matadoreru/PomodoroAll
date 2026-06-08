@@ -35,6 +35,7 @@ function getPublicRooms() {
     .slice(0, 5)
     .map(r => ({
       id: r.id,
+      name: r.name,
       userCount: Object.keys(r.users).length,
       phase: r.timer.phase,
       running: r.timer.running,
@@ -50,10 +51,11 @@ app.get('*', (req, res) => {
 /**
  * Crea una sala con su estado inicial del temporizador Pomodoro.
  */
-function createRoom(roomId) {
+function createRoom(roomId, name) {
   const settings = { study: 25 * 60, short_break: 5 * 60, long_break: 15 * 60 };
   return {
     id: roomId,
+    name: (name || '').trim().substring(0, 30) || '',
     users: {},
     timer: {
       phase: 'study',
@@ -149,9 +151,9 @@ io.on('connection', (socket) => {
   console.log(`[+] Usuario conectado: ${socket.id}`);
 
   // ── Crear sala ────────────────────────────────────────────────────────────
-  socket.on('room:create', ({ username }, callback) => {
+  socket.on('room:create', ({ username, roomName }, callback) => {
     const roomId = uuidv4().substring(0, 8).toUpperCase();
-    rooms[roomId] = createRoom(roomId);
+    rooms[roomId] = createRoom(roomId, roomName);
 
     rooms[roomId].users[socket.id] = {
       id: socket.id,
@@ -168,6 +170,7 @@ io.on('connection', (socket) => {
 
     callback({
       roomId,
+      name: rooms[roomId].name,
       timer: getTimerSnapshot(rooms[roomId]),
       users: Object.values(rooms[roomId].users),
       settings: rooms[roomId].settings,
@@ -211,6 +214,7 @@ io.on('connection', (socket) => {
 
     callback({
       roomId,
+      name: room.name,
       timer: getTimerSnapshot(room),
       users: Object.values(room.users),
       messages: room.messages.slice(-20),

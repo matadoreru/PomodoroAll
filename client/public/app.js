@@ -61,6 +61,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   startLobbyRefresh();
+  initResizeHandle();
 });
 
 // ─── Conexión Socket ─────────────────────────────────────────────────────────
@@ -129,20 +130,21 @@ function connectSocket() {
 // ─── Crear sala ──────────────────────────────────────────────────────────────
 function handleCreate() {
   const username = document.getElementById('input-username').value.trim();
+  const roomName = document.getElementById('input-roomname').value.trim();
   if (!username) { showLobbyError('Por favor escribe tu nombre.'); return; }
 
   myUsername = username;
   if (!socket) connectSocket();
 
   socket.once('connect', () => {
-    socket.emit('room:create', { username }, (res) => {
+    socket.emit('room:create', { username, roomName }, (res) => {
       if (res.error) { showLobbyError(res.error); return; }
       enterApp(res);
     });
   });
 
   if (socket.connected) {
-    socket.emit('room:create', { username }, (res) => {
+    socket.emit('room:create', { username, roomName }, (res) => {
       if (res.error) { showLobbyError(res.error); return; }
       enterApp(res);
     });
@@ -172,7 +174,7 @@ function handleJoin() {
 }
 
 // ─── Entrar a la app ─────────────────────────────────────────────────────────
-function enterApp({ roomId, timer, users, settings, music }, messages = []) {
+function enterApp({ roomId, name, timer, users, settings, music }, messages = []) {
   stopLobbyRefresh();
   if (settings) {
     PHASE_DURATIONS.study       = settings.study;
@@ -182,7 +184,7 @@ function enterApp({ roomId, timer, users, settings, music }, messages = []) {
   if (music?.playlistId) _setSpotifyWidget(music.playlistId, music.preset || null);
   currentRoomId = roomId;
 
-  document.getElementById('header-room-code').textContent = roomId;
+  document.getElementById('header-room-name').textContent = name || roomId;
   document.getElementById('modal-room-code').textContent = roomId;
   document.getElementById('share-url-input').value = `${window.location.origin}?room=${roomId}`;
 
@@ -573,10 +575,10 @@ function renderLobbyRooms(rooms) {
     <div class="lobby-room-card" onclick="quickJoin('${escapeHtml(r.id)}')">
       <span class="material-symbols-rounded text-[18px]" style="color:var(--text-muted)">group</span>
       <div class="flex flex-col gap-0.5 flex-1 min-w-0">
-        <span class="text-[13px] font-medium tracking-wide" style="color:var(--text)">${escapeHtml(r.id)}</span>
-        <span class="text-[11px]" style="color:var(--text-muted)">${r.userCount} usuario${r.userCount !== 1 ? 's' : ''}</span>
+        <span class="text-[13px] font-medium truncate" style="color:var(--text)">${escapeHtml(r.name || r.id)}</span>
+        <span class="text-[11px]" style="color:var(--text-muted)">${r.userCount} usuario${r.userCount !== 1 ? 's' : ''} · ${PHASE_LABEL_ES[r.phase] || r.phase}</span>
       </div>
-      <span class="room-phase${r.running ? ' running' : ''}">${PHASE_LABEL_ES[r.phase] || r.phase}</span>
+      <span class="room-phase${r.running ? ' running' : ''}">${r.running ? 'activa' : 'pausada'}</span>
       <button class="join-btn">Unirse</button>
     </div>
   `).join('');
@@ -587,6 +589,41 @@ function quickJoin(roomId) {
   if (!username) { showLobbyError('Escribe tu nombre para unirte.'); return; }
   document.getElementById('input-roomcode').value = roomId;
   handleJoin();
+}
+
+// ─── Resize panel derecho ────────────────────────────────────────────────────
+function initResizeHandle() {
+  const handle = document.getElementById('panel-resize-handle');
+  const panel  = document.getElementById('panel-right');
+  const header = document.querySelector('#screen-app header');
+  if (!handle || !panel) return;
+
+  let startX, startWidth;
+
+  handle.addEventListener('mousedown', e => {
+    startX = e.clientX;
+    startWidth = panel.offsetWidth;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
+  });
+
+  function onMove(e) {
+    const w = Math.max(300, Math.min(680, startWidth + (startX - e.clientX)));
+    panel.style.width = w + 'px';
+    if (header) header.style.gridTemplateColumns = `220px 1fr ${w}px`;
+  }
+
+  function onUp() {
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
 }
 
 // ─── Sonido de notificación ───────────────────────────────────────────────────

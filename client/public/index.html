@@ -49,6 +49,14 @@
     </div>
 
     <div class="flex flex-col gap-2.5">
+      <div class="flex flex-col gap-2">
+        <label class="text-[11px] font-medium uppercase tracking-[1.2px]" style="color:var(--text-muted)">
+          Nombre de tu sala <span class="normal-case font-normal" style="color:var(--text-dim)">(opcional)</span>
+        </label>
+        <input id="input-roomname" type="text" placeholder="Ej: Estudio de filosofía"
+               maxlength="30" autocomplete="off" class="form-input"
+               onkeydown="if(event.key==='Enter') handleCreate()" />
+      </div>
       <button class="btn btn-primary" onclick="handleCreate()">✦ Crear una sala</button>
       <div class="divider">o únete con un código</div>
       <div class="flex gap-2">
@@ -79,8 +87,7 @@
     <div class="md:flex md:items-center md:justify-center">
       <button class="room-badge" onclick="openShareModal()" title="Compartir sala">
         <span class="material-symbols-rounded text-[14px]">link</span>
-        <span>Sala:</span>
-        <span class="code" id="header-room-code">——</span>
+        <span class="code" id="header-room-name">——</span>
       </button>
     </div>
 
@@ -165,8 +172,10 @@
     </main>
 
     <!-- Right panel: Música + Chat (pestañas) -->
-    <aside class="panel-right w-[420px] border-l flex flex-col shrink-0" id="panel-right"
+    <aside class="panel-right w-[420px] border-l flex flex-col shrink-0 relative" id="panel-right"
            style="border-color:var(--border)">
+
+      <div id="panel-resize-handle" class="panel-resize-handle" title="Arrastra para redimensionar"></div>
 
       <!-- Tab bar -->
       <div class="flex shrink-0 border-b" style="border-color:var(--border)">
