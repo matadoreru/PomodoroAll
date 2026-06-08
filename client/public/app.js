@@ -399,22 +399,33 @@ function loadSpotifyPlaylist(preset) {
   document.getElementById('spotify-widget-frame').innerHTML = `
     <iframe
       src="https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0"
-      width="100%" height="232" frameborder="0" allowfullscreen=""
+      width="100%" height="352" frameborder="0" allowfullscreen=""
       allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
       loading="lazy"
     ></iframe>`;
 }
 
-// ─── Toggle chat ─────────────────────────────────────────────────────────────
-function toggleChat() {
-  chatOpen = !chatOpen;
-  const isMobile = window.innerWidth <= 768;
-  if (isMobile) {
-    document.getElementById('panel-right').classList.toggle('mobile-open', chatOpen);
-  } else {
-    document.getElementById('chat-section').classList.toggle('hidden', !chatOpen);
+// ─── Pestañas panel derecho ───────────────────────────────────────────────────
+function switchRightTab(tab) {
+  const isMusic = tab === 'music';
+  document.getElementById('right-music').classList.toggle('hidden', !isMusic);
+  document.getElementById('right-chat').classList.toggle('hidden', isMusic);
+  document.getElementById('tab-music').classList.toggle('active', isMusic);
+  document.getElementById('tab-chat-tab').classList.toggle('active', !isMusic);
+  document.getElementById('btn-toggle-chat').classList.toggle('active', !isMusic);
+  if (window.innerWidth <= 768) {
+    document.getElementById('panel-right').classList.add('mobile-open');
   }
-  document.getElementById('btn-toggle-chat').classList.toggle('active', chatOpen);
+}
+
+function toggleChat() {
+  const chatVisible = !document.getElementById('right-chat').classList.contains('hidden');
+  if (chatVisible && window.innerWidth <= 768) {
+    document.getElementById('panel-right').classList.remove('mobile-open');
+    document.getElementById('btn-toggle-chat').classList.remove('active');
+  } else {
+    switchRightTab(chatVisible ? 'music' : 'chat');
+  }
 }
 
 // ─── Playlist personalizada ───────────────────────────────────────────────────
@@ -441,7 +452,7 @@ function loadCustomPlaylist() {
   document.getElementById('spotify-widget-frame').innerHTML = `
     <iframe
       src="https://open.spotify.com/embed/playlist/${id}?utm_source=generator&theme=0"
-      width="100%" height="232" frameborder="0" allowfullscreen=""
+      width="100%" height="352" frameborder="0" allowfullscreen=""
       allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
       loading="lazy"
     ></iframe>`;

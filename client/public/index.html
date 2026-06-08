@@ -160,29 +160,44 @@
 
     </main>
 
-    <!-- Right panel: Chat + Spotify -->
+    <!-- Right panel: Música + Chat (pestañas) -->
     <aside class="panel-right w-[380px] border-l flex flex-col shrink-0" id="panel-right"
            style="border-color:var(--border)">
 
-      <!-- Spotify -->
-      <div class="p-4 border-b shrink-0" style="border-color:var(--border)">
-        <div class="flex items-center gap-2 mb-3">
-          <div class="w-5 h-5 rounded-full flex items-center justify-center"
-               style="background:#1DB954">
-            <span class="material-symbols-rounded text-[13px]" style="color:#000">music_note</span>
-          </div>
-          <span class="text-xs font-medium" style="color:var(--text-dim)">Música de estudio</span>
+      <!-- Tab bar -->
+      <div class="flex shrink-0 border-b" style="border-color:var(--border)">
+        <button class="right-tab active" id="tab-music" onclick="switchRightTab('music')">
+          <span class="material-symbols-rounded text-[15px]">music_note</span>
+          Música
+        </button>
+        <button class="right-tab" id="tab-chat-tab" onclick="switchRightTab('chat')">
+          <span class="material-symbols-rounded text-[15px]">chat</span>
+          Chat
+        </button>
+      </div>
+
+      <!-- ── Pestaña Música ──────────────────────────── -->
+      <div id="right-music" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+
+        <!-- Aviso de login -->
+        <div class="flex items-start gap-2 rounded-lg px-3 py-2.5 text-[11px]"
+             style="background:rgba(29,185,84,0.08);color:var(--text-muted)">
+          <span class="material-symbols-rounded text-[14px] shrink-0 mt-px">info</span>
+          <span>Para escuchar canciones completas, inicia sesión en
+            <a href="https://open.spotify.com" target="_blank" style="color:#1DB954">Spotify</a>
+            en este navegador.</span>
         </div>
 
+        <!-- Widget -->
         <div class="rounded-[10px] overflow-hidden" style="background:var(--surface-2)"
              id="spotify-widget-frame">
-          <div class="h-20 flex items-center justify-center text-xs" style="color:var(--text-muted)">
+          <div class="h-24 flex items-center justify-center text-xs" style="color:var(--text-muted)">
             Elige una playlist ↓
           </div>
         </div>
 
-        <!-- Presets en cuadrícula 2×2 -->
-        <div class="grid grid-cols-2 gap-1.5 mt-2.5">
+        <!-- Presets 2×2 -->
+        <div class="grid grid-cols-2 gap-1.5">
           <button class="spotify-preset" onclick="loadSpotifyPlaylist('lofi')" id="preset-lofi">
             <span class="text-[15px]">🌧</span> Lo-Fi Hip Hop
           </button>
@@ -197,8 +212,8 @@
           </button>
         </div>
 
-        <!-- Playlist personalizada por URL o ID -->
-        <div class="flex gap-1.5 mt-2.5">
+        <!-- Playlist personalizada -->
+        <div class="flex gap-1.5">
           <input
             id="custom-playlist-input"
             type="text"
@@ -212,15 +227,8 @@
         </div>
       </div>
 
-      <!-- Chat (se puede ocultar independientemente con el botón 💬) -->
-      <div class="flex-1 flex flex-col overflow-hidden" id="chat-section">
-        <div class="px-4 pt-3.5 pb-2.5 border-b shrink-0 flex items-center justify-between"
-             style="border-color:var(--border)">
-          <span class="text-[10px] font-medium uppercase tracking-[1.5px]" style="color:var(--text-muted)">
-            Chat
-          </span>
-          <span class="text-[10px]" style="color:var(--text-muted)">Ocultar con el botón de chat</span>
-        </div>
+      <!-- ── Pestaña Chat ────────────────────────────── -->
+      <div id="right-chat" class="hidden flex-1 flex flex-col overflow-hidden">
 
         <div class="chat-messages flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5 scroll-smooth"
              id="chat-messages">
@@ -231,12 +239,12 @@
 
         <!-- Quick reactions -->
         <div class="flex gap-1.5 px-4 py-2.5 border-t flex-wrap shrink-0" style="border-color:var(--border)">
-          <button class="reaction-btn" onclick="sendReaction('🔥')" title="🔥">🔥</button>
-          <button class="reaction-btn" onclick="sendReaction('💪')" title="💪">💪</button>
-          <button class="reaction-btn" onclick="sendReaction('🎯')" title="🎯">🎯</button>
-          <button class="reaction-btn" onclick="sendReaction('⭐')" title="⭐">⭐</button>
-          <button class="reaction-btn" onclick="sendReaction('☕')" title="☕">☕</button>
-          <button class="reaction-btn" onclick="sendReaction('🎉')" title="🎉">🎉</button>
+          <button class="reaction-btn" onclick="sendReaction('🔥')">🔥</button>
+          <button class="reaction-btn" onclick="sendReaction('💪')">💪</button>
+          <button class="reaction-btn" onclick="sendReaction('🎯')">🎯</button>
+          <button class="reaction-btn" onclick="sendReaction('⭐')">⭐</button>
+          <button class="reaction-btn" onclick="sendReaction('☕')">☕</button>
+          <button class="reaction-btn" onclick="sendReaction('🎉')">🎉</button>
         </div>
 
         <!-- Chat input -->
