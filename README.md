@@ -1,4 +1,4 @@
-# 🍅 PomodoroSync — Estudia en tiempo real con amigos
+# PomodoroAll— Estudia en tiempo real con amigos
 
 Aplicación web de Pomodoro colaborativo en tiempo real. Temporizadores sincronizados, chat, reacciones y música de Spotify.
 
