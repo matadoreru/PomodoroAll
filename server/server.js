@@ -234,23 +234,46 @@ async function resolvePlaylistItems(spotifyId, addedBy, spotifyUrl) {
     sourceTitle = data.title || sourceTitle;
   } catch {}
 
-  const response = await fetchWithTimeout(getSpotifyPageUrl(spotifyUrl, 'playlist', spotifyId), {
+  const playlistPageUrl = getSpotifyPageUrl(spotifyUrl, 'playlist', spotifyId);
+  const embedPageUrl = getSpotifyPageUrl(spotifyUrl, 'embed/playlist', spotifyId);
+
+  const response = await fetchWithTimeout(playlistPageUrl, {
     headers: {
       'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36'
     }
   }, 12000);
-  if (!response.ok) throw new Error(`Spotify playlist ${response.status}`);
 
-  const html = await response.text();
-  let tracks = extractPlaylistTracks(html, addedBy, sourceTitle);
-  if (!tracks.length) {
-    tracks = extractPlaylistTrackIds(html).map((trackId) => buildTrackItem({
-      spotifyId: trackId,
-      title: 'Canción de Spotify',
-      addedBy,
-      sourceTitle,
-    }));
+  const htmlSources = [];
+  if (response.ok) {
+    htmlSources.push(await response.text());
   }
+
+  try {
+    const embedResponse = await fetchWithTimeout(embedPageUrl, {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36'
+      }
+    }, 12000);
+    if (embedResponse.ok) htmlSources.push(await embedResponse.text());
+  } catch {}
+
+  let tracks = [];
+  for (const html of htmlSources) {
+    tracks = extractPlaylistTracks(html, addedBy, sourceTitle);
+    if (tracks.length) break;
+
+    const fallbackIds = extractPlaylistTrackIds(html);
+    if (fallbackIds.length) {
+      tracks = fallbackIds.map((trackId) => buildTrackItem({
+        spotifyId: trackId,
+        title: 'Canción de Spotify',
+        addedBy,
+        sourceTitle,
+      }));
+      break;
+    }
+  }
+
   if (!tracks.length) throw new Error('Playlist sin canciones resolubles');
   return tracks;
 }
