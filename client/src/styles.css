@@ -211,8 +211,18 @@
   }
   .queue-item:hover { background: var(--surface-2); }
   .queue-item.current { background: var(--accent-glow); }
+  .queue-item.hidden-item { opacity: 0.55; }
   .queue-item.current .queue-item-icon { color: var(--accent); }
   .queue-item-icon { color: var(--text-muted); flex-shrink: 0; }
+  .queue-item-artwork {
+    @apply w-10 h-10 rounded-[8px] object-cover shrink-0;
+  }
+  .queue-item-artwork-fallback {
+    @apply flex items-center justify-center;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
 
   .queue-remove-btn {
     @apply w-6 h-6 rounded flex items-center justify-center transition-all opacity-0 shrink-0;
