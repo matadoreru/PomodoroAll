@@ -465,11 +465,6 @@ function showFloatingReaction(emoji, from) {
   setTimeout(() => el.remove(), 2600);
 }
 
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> 5b3698b (Fix)
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
   return crypto.subtle.digest('SHA-256', data);
@@ -507,8 +502,6 @@ function persistSpotifyAuthState() {
   }));
 }
 
-<<<<<<< HEAD
-=======
 async function parseJsonResponse(response, fallbackMessage) {
   const text = await response.text();
   if (!text) return {};
@@ -519,8 +512,6 @@ async function parseJsonResponse(response, fallbackMessage) {
     throw new Error(fallbackMessage || 'Respuesta inesperada de Spotify');
   }
 }
-
->>>>>>> 5b3698b (Fix)
 function clearSpotifyAuthState() {
   spotifyAccessToken = '';
   spotifyRefreshToken = '';
@@ -563,11 +554,7 @@ async function exchangeSpotifyCode(code) {
   });
 
   if (!response.ok) throw new Error('No se pudo completar el login de Spotify');
-<<<<<<< HEAD
-  const data = await response.json();
-=======
   const data = await parseJsonResponse(response, 'Respuesta inválida al iniciar sesión con Spotify');
->>>>>>> 5b3698b (Fix)
   spotifyAccessToken = data.access_token || '';
   spotifyRefreshToken = data.refresh_token || spotifyRefreshToken;
   spotifyTokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
@@ -595,11 +582,7 @@ async function refreshSpotifyToken() {
     throw new Error('No se pudo renovar la sesión de Spotify');
   }
 
-<<<<<<< HEAD
-  const data = await response.json();
-=======
   const data = await parseJsonResponse(response, 'Respuesta inválida al renovar Spotify');
->>>>>>> 5b3698b (Fix)
   spotifyAccessToken = data.access_token || '';
   spotifyRefreshToken = data.refresh_token || spotifyRefreshToken;
   spotifyTokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
@@ -649,11 +632,7 @@ async function spotifyApi(path, options = {}, allowRetry = true) {
   }
 
   if (response.status === 204) return null;
-<<<<<<< HEAD
-  return response.json();
-=======
   return parseJsonResponse(response, 'Respuesta inválida de Spotify');
->>>>>>> 5b3698b (Fix)
 }
 
 async function handleSpotifyAuthRedirect() {
@@ -780,16 +759,11 @@ async function resolveSpotifyUrlToItems(spotifyUrl) {
   };
 }
 
-<<<<<<< HEAD
-=======
 function queueAddFromServerFallback(spotifyUrl, onDone) {
   socket.emit('queue:add', { spotifyUrl }, (res = {}) => {
     onDone?.(res);
   });
 }
-
->>>>>>> Stashed changes
->>>>>>> 5b3698b (Fix)
 // ─── Cola de música ───────────────────────────────────────────────────────────
 async function queueAdd() {
   const input = document.getElementById('queue-input');
@@ -815,12 +789,6 @@ async function queueAdd() {
         btn.innerHTML = '<span class="material-symbols-rounded text-[16px]">add</span>';
       }
 
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-  if (btn) setTimeout(() => { btn.disabled = false; btn.innerHTML = '<span class="material-symbols-rounded text-[16px]">add</span>'; }, 500);
-=======
->>>>>>> 5b3698b (Fix)
       if (res.error) {
         showToast(`⚠ ${res.error}`);
         return;
@@ -832,8 +800,6 @@ async function queueAdd() {
         : '✓ Canción añadida a la cola');
     });
   } catch (error) {
-<<<<<<< HEAD
-=======
     if (playlistRe.test(val) && /playlist/i.test(error.message || '')) {
       queueAddFromServerFallback(val, (res = {}) => {
         if (btn) {
@@ -849,29 +815,18 @@ async function queueAdd() {
       });
       return;
     }
-
->>>>>>> 5b3698b (Fix)
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = '<span class="material-symbols-rounded text-[16px]">add</span>';
     }
     showToast(`⚠ ${error.message || 'No se pudo leer Spotify'}`);
   }
-<<<<<<< HEAD
-=======
->>>>>>> Stashed changes
->>>>>>> 5b3698b (Fix)
 }
 
 async function queueAddPreset(key) {
   const p = QUEUE_PRESETS[key];
   if (!p || !socket || !currentRoomId) return;
   showToast(`Añadiendo ${p.label}…`);
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> 5b3698b (Fix)
 
   try {
     const resolved = await resolveSpotifyUrlToItems(`https://open.spotify.com/playlist/${p.id}`);
@@ -883,10 +838,6 @@ async function queueAddPreset(key) {
       showToast(`✓ ${p.label}: ${res.added || 0} canciones añadidas`);
     });
   } catch (error) {
-<<<<<<< HEAD
-    showToast(`⚠ ${error.message || 'No se pudo leer Spotify'}`);
-  }
-=======
     if (/playlist/i.test(error.message || '')) {
       queueAddFromServerFallback(`https://open.spotify.com/playlist/${p.id}`, (res = {}) => {
         if (res.error) {
@@ -899,8 +850,6 @@ async function queueAddPreset(key) {
     }
     showToast(`⚠ ${error.message || 'No se pudo leer Spotify'}`);
   }
->>>>>>> Stashed changes
->>>>>>> 5b3698b (Fix)
 }
 
 function queueRemove(id) {
@@ -944,20 +893,6 @@ function queueJump(index) {
   socket.emit('queue:jump', { index });
 }
 
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-function tryControlSpotifyIframe(play) {
-  const iframe = document.getElementById('spotify-iframe');
-  if (!iframe) return;
-  try {
-    iframe.contentWindow.postMessage(
-      JSON.stringify({ method: play ? 'play' : 'pause' }),
-      'https://open.spotify.com'
-    );
-  } catch {}
-=======
->>>>>>> 5b3698b (Fix)
 function queueDragStart(index) {
   dragQueueIndex = index;
 }
@@ -1020,10 +955,6 @@ function ensureSpotifyController() {
     spotifyPlayerState = state;
     if (!state) return;
 
-<<<<<<< HEAD
-    spotifySessionDetected = true;
-=======
->>>>>>> 5b3698b (Fix)
     updateSpotifyAuthUI();
 
     const item = currentQueue[currentPlayback.trackIndex];
@@ -1135,10 +1066,6 @@ function updateSpotifyVolumeUI() {
     const icon = spotifyVolume === 0 ? 'volume_off' : (spotifyVolume < 0.5 ? 'volume_down' : 'volume_up');
     btn.innerHTML = `<span class="material-symbols-rounded text-[16px]">${icon}</span>`;
   }
-<<<<<<< HEAD
-=======
->>>>>>> Stashed changes
->>>>>>> 5b3698b (Fix)
 }
 
 function renderNowPlaying() {
@@ -1241,21 +1168,9 @@ function updatePlaybackButtons() {
 
   const skip = document.getElementById('btn-queue-skip');
   const prev = document.getElementById('btn-queue-prev');
-<<<<<<< HEAD
-  const hasNext = currentQueue.slice(currentPlayback.trackIndex + 1).some(item => !item.hidden);
-  const hasPrev = currentQueue.slice(0, Math.max(currentPlayback.trackIndex, 0)).some(item => !item.hidden);
-  if (skip) skip.disabled = !currentQueue.length || !hasNext;
-  if (prev) prev.disabled = currentPlayback.trackIndex <= 0 || !hasPrev;
-=======
-<<<<<<< Updated upstream
-  if (skip) skip.disabled = !currentQueue.length || currentPlayback.trackIndex >= currentQueue.length - 1;
-  if (prev) prev.disabled = currentPlayback.trackIndex <= 0;
-=======
   const visibleCount = currentQueue.filter(item => !item.hidden).length;
   if (skip) skip.disabled = visibleCount <= 1;
   if (prev) prev.disabled = visibleCount <= 1;
->>>>>>> Stashed changes
->>>>>>> 5b3698b (Fix)
 }
 
 // ─── Pestañas panel derecho ───────────────────────────────────────────────────
