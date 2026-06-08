@@ -190,18 +190,21 @@
       </div>
 
       <!-- ── Pestaña Música ──────────────────────────── -->
-      <div id="right-music" class="flex-1 flex flex-col overflow-hidden">
+        <div id="right-music" class="flex-1 flex flex-col overflow-hidden">
 
-        <!-- Reproduciendo ahora -->
-        <div class="p-3 border-b shrink-0" style="border-color:var(--border)">
-          <p class="text-[10px] font-medium uppercase tracking-[1.5px] mb-2" style="color:var(--text-muted)">Reproduciendo</p>
+          <div id="spotify-controller-host" aria-hidden="true"
+               style="position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden"></div>
 
-          <!-- Iframe de la canción actual -->
-          <div id="now-playing-frame" class="rounded-[10px] overflow-hidden mb-2" style="background:var(--surface-2)">
-            <div style="height:72px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;gap:6px">
-              <span class="material-symbols-rounded text-[16px]">music_off</span> Cola vacía — añade canciones abajo
+          <!-- Reproduciendo ahora -->
+          <div class="p-3 border-b shrink-0" style="border-color:var(--border)">
+            <p class="text-[10px] font-medium uppercase tracking-[1.5px] mb-2" style="color:var(--text-muted)">Reproduciendo</p>
+
+            <!-- Tarjeta de la canción actual -->
+            <div id="now-playing-frame" class="rounded-[10px] overflow-hidden mb-2" style="background:var(--surface-2)">
+              <div style="height:72px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;gap:6px">
+                <span class="material-symbols-rounded text-[16px]">music_off</span> Cola vacía — añade canciones abajo
+              </div>
             </div>
-          </div>
 
           <!-- Info + controles -->
           <div class="flex items-center gap-2">
