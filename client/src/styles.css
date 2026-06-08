@@ -211,6 +211,7 @@
   }
   .queue-item:hover { background: var(--surface-2); }
   .queue-item.current { background: var(--accent-glow); }
+  .queue-item.hidden-item { opacity: 0.55; }
   .queue-item.current .queue-item-icon { color: var(--accent); }
   .queue-item-icon { color: var(--text-muted); flex-shrink: 0; }
 

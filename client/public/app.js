@@ -33,6 +33,8 @@ let spotifyEmbedController = null;
 let spotifyLoadedUri = '';
 let spotifySessionDetected = false;
 let spotifyLocallyMuted = false;
+let dragQueueIndex = -1;
+let lastTrackEndReportedId = '';
 
 let PHASE_DURATIONS = {
   study:        25 * 60,
@@ -138,6 +140,7 @@ function connectSocket() {
   socket.on('queue:update', ({ queue, playback }) => {
     currentQueue   = queue;
     currentPlayback = playback;
+    lastTrackEndReportedId = '';
     renderQueueList();
     renderNowPlaying();
     updatePlaybackButtons();
@@ -147,6 +150,7 @@ function connectSocket() {
   socket.on('queue:playback', ({ playback, username }) => {
     const prevIdx = currentPlayback.trackIndex;
     currentPlayback = playback;
+    lastTrackEndReportedId = '';
     if (playback.trackIndex !== prevIdx) {
       renderQueueList();
       renderNowPlaying();
@@ -486,6 +490,16 @@ function queueRemove(id) {
   socket.emit('queue:remove', { id });
 }
 
+function queueToggleHidden(id) {
+  if (!socket || !currentRoomId) return;
+  socket.emit('queue:toggle-hidden', { id });
+}
+
+function queueReorder(fromIndex, toIndex) {
+  if (!socket || !currentRoomId || fromIndex === toIndex) return;
+  socket.emit('queue:reorder', { fromIndex, toIndex });
+}
+
 function queueClear() {
   if (!socket || !currentRoomId) return;
   if (currentQueue.length === 0) return;
@@ -510,6 +524,24 @@ function queuePrev() {
 function queueJump(index) {
   if (!socket || !currentRoomId) return;
   socket.emit('queue:jump', { index });
+}
+
+function queueDragStart(index) {
+  dragQueueIndex = index;
+}
+
+function queueDragOver(event) {
+  event.preventDefault();
+}
+
+function queueDrop(index) {
+  if (dragQueueIndex === -1) return;
+  queueReorder(dragQueueIndex, index);
+  dragQueueIndex = -1;
+}
+
+function queueDragEnd() {
+  dragQueueIndex = -1;
 }
 
 function initSpotifyIframeApi() {
@@ -539,6 +571,15 @@ function ensureSpotifyController() {
       spotifyEmbedController.addListener('playback_update', (event) => {
         if (event?.data && (!event.data.isPaused || event.data.position > 0)) {
           markSpotifySessionDetected();
+        }
+
+        const item = currentQueue[currentPlayback.trackIndex];
+        if (!socket || !currentRoomId || !item || item.id === lastTrackEndReportedId) return;
+        const duration = event?.data?.duration || 0;
+        const position = event?.data?.position || 0;
+        if (!event?.data?.isPaused && duration > 0 && position >= duration - 1200) {
+          lastTrackEndReportedId = item.id;
+          socket.emit('queue:track-ended', { id: item.id });
         }
       });
     }
@@ -652,15 +693,27 @@ function renderQueueList() {
 
   el.innerHTML = currentQueue.map((item, i) => {
     const isCurrent = i === currentPlayback.trackIndex;
+    const isHidden = !!item.hidden;
     const icon = isCurrent && currentPlayback.playing
       ? 'volume_up'
-      : 'music_note';
-    return `<div class="queue-item${isCurrent ? ' current' : ''}" onclick="queueJump(${i})">
+      : (isHidden ? 'visibility_off' : 'music_note');
+    return `<div class="queue-item${isCurrent ? ' current' : ''}${isHidden ? ' hidden-item' : ''}"
+      draggable="true"
+      ondragstart="queueDragStart(${i})"
+      ondragover="queueDragOver(event)"
+      ondrop="queueDrop(${i})"
+      ondragend="queueDragEnd()"
+      onclick="${isHidden ? '' : `queueJump(${i})`}"
+      >
+      <span class="material-symbols-rounded text-[15px] queue-item-icon" title="Arrastrar">drag_indicator</span>
       <span class="material-symbols-rounded text-[15px] queue-item-icon">${icon}</span>
       <div class="flex flex-col flex-1 min-w-0">
-        <span class="text-[13px] truncate" style="color:${isCurrent ? 'var(--accent)' : 'var(--text)'}">${escapeHtml(item.title)}</span>
+        <span class="text-[13px] truncate" style="color:${isCurrent ? 'var(--accent)' : 'var(--text)'}">${escapeHtml(item.title)}${isHidden ? ' · oculta' : ''}</span>
         <span class="text-[10px] truncate" style="color:var(--text-muted)">${escapeHtml((item.artists || []).join(', ') || item.addedBy)}${item.sourceTitle ? ` · ${escapeHtml(item.sourceTitle)}` : ''}</span>
       </div>
+      <button class="queue-remove-btn" onclick="event.stopPropagation();queueToggleHidden('${item.id}')" title="${isHidden ? 'Mostrar en reproducción' : 'Ocultar de reproducción'}">
+        <span class="material-symbols-rounded text-[14px]">${isHidden ? 'visibility' : 'visibility_off'}</span>
+      </button>
       <button class="queue-remove-btn" onclick="event.stopPropagation();queueRemove('${item.id}')" title="Eliminar">
         <span class="material-symbols-rounded text-[14px]">close</span>
       </button>
@@ -679,8 +732,10 @@ function updatePlaybackButtons() {
 
   const skip = document.getElementById('btn-queue-skip');
   const prev = document.getElementById('btn-queue-prev');
-  if (skip) skip.disabled = !currentQueue.length || currentPlayback.trackIndex >= currentQueue.length - 1;
-  if (prev) prev.disabled = currentPlayback.trackIndex <= 0;
+  const hasNext = currentQueue.slice(currentPlayback.trackIndex + 1).some(item => !item.hidden);
+  const hasPrev = currentQueue.slice(0, Math.max(currentPlayback.trackIndex, 0)).some(item => !item.hidden);
+  if (skip) skip.disabled = !currentQueue.length || !hasNext;
+  if (prev) prev.disabled = currentPlayback.trackIndex <= 0 || !hasPrev;
 }
 
 function updateLocalMuteButton() {

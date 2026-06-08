@@ -81,6 +81,7 @@ function buildTrackItem({ spotifyId, title, artists = [], artworkUrl = '', added
   return {
     id: uuidv4(),
     type: 'track',
+    hidden: false,
     spotifyId,
     spotifyUri: `spotify:track:${spotifyId}`,
     embedUrl: `https://open.spotify.com/embed/track/${spotifyId}`,
@@ -90,6 +91,54 @@ function buildTrackItem({ spotifyId, title, artists = [], artworkUrl = '', added
     sourceTitle,
     addedBy,
   };
+}
+
+function getNextPlayableIndex(queue, startIndex, direction = 1) {
+  if (!queue.length) return -1;
+
+  for (let i = startIndex + direction; i >= 0 && i < queue.length; i += direction) {
+    if (!queue[i]?.hidden) return i;
+  }
+
+  return -1;
+}
+
+function getFirstPlayableIndex(queue) {
+  return queue.findIndex((item) => !item.hidden);
+}
+
+function normalizePlayback(room) {
+  if (!room.queue.length) {
+    room.playback = { trackIndex: -1, playing: false };
+    return;
+  }
+
+  if (room.playback.trackIndex < 0 || room.playback.trackIndex >= room.queue.length) {
+    room.playback.trackIndex = getFirstPlayableIndex(room.queue);
+  }
+
+  if (room.playback.trackIndex === -1) {
+    room.playback.playing = false;
+    return;
+  }
+
+  if (room.queue[room.playback.trackIndex]?.hidden) {
+    const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
+    const prevIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, -1);
+    room.playback.trackIndex = nextIndex !== -1 ? nextIndex : prevIndex;
+  }
+
+  if (room.playback.trackIndex === -1) room.playback.playing = false;
+}
+
+function broadcastQueueUpdate(roomId, room) {
+  normalizePlayback(room);
+  io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+}
+
+function broadcastQueuePlayback(roomId, room, username) {
+  normalizePlayback(room);
+  io.to(roomId).emit('queue:playback', { playback: room.playback, username });
 }
 
 async function resolveTrackItem(spotifyId, addedBy) {
@@ -158,6 +207,25 @@ function extractPlaylistTracks(html, addedBy, sourceTitle = '') {
   return tracks;
 }
 
+function extractPlaylistTrackIds(html) {
+  const seen = new Set();
+  const ids = [];
+
+  for (const match of html.matchAll(/href="\/track\/([a-zA-Z0-9]+)"/g)) {
+    if (seen.has(match[1])) continue;
+    seen.add(match[1]);
+    ids.push(match[1]);
+  }
+
+  for (const match of html.matchAll(/spotify:track:([a-zA-Z0-9]+)/g)) {
+    if (seen.has(match[1])) continue;
+    seen.add(match[1]);
+    ids.push(match[1]);
+  }
+
+  return ids;
+}
+
 async function resolvePlaylistItems(spotifyId, addedBy, spotifyUrl) {
   let sourceTitle = 'Playlist de Spotify';
 
@@ -174,7 +242,15 @@ async function resolvePlaylistItems(spotifyId, addedBy, spotifyUrl) {
   if (!response.ok) throw new Error(`Spotify playlist ${response.status}`);
 
   const html = await response.text();
-  const tracks = extractPlaylistTracks(html, addedBy, sourceTitle);
+  let tracks = extractPlaylistTracks(html, addedBy, sourceTitle);
+  if (!tracks.length) {
+    tracks = extractPlaylistTrackIds(html).map((trackId) => buildTrackItem({
+      spotifyId: trackId,
+      title: 'Canción de Spotify',
+      addedBy,
+      sourceTitle,
+    }));
+  }
   if (!tracks.length) throw new Error('Playlist sin canciones resolubles');
   return tracks;
 }
@@ -497,7 +573,7 @@ io.on('connection', (socket) => {
       room.queue.push(...items);
       if (wasEmpty && room.queue.length) room.playback.trackIndex = 0;
 
-      io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+      broadcastQueueUpdate(roomId, room);
       ack({ ok: true, added: items.length, type: tM ? 'track' : 'playlist' });
     } catch (error) {
       console.error('[QUEUE] Error añadiendo contenido de Spotify:', error.message);
@@ -511,16 +587,10 @@ io.on('connection', (socket) => {
     if (!room) return;
     const idx = room.queue.findIndex(i => i.id === id);
     if (idx === -1) return;
+    const currentId = room.queue[room.playback.trackIndex]?.id;
     room.queue.splice(idx, 1);
-    if (!room.queue.length) {
-      room.playback = { trackIndex: -1, playing: false };
-    } else if (room.playback.trackIndex >= room.queue.length) {
-      room.playback.trackIndex = room.queue.length - 1;
-      room.playback.playing = false;
-    } else if (idx < room.playback.trackIndex) {
-      room.playback.trackIndex--;
-    }
-    io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+    room.playback.trackIndex = room.queue.findIndex(item => item.id === currentId);
+    broadcastQueueUpdate(roomId, room);
   });
 
   socket.on('queue:clear', () => {
@@ -529,15 +599,50 @@ io.on('connection', (socket) => {
     if (!room) return;
     room.queue = [];
     room.playback = { trackIndex: -1, playing: false };
-    io.to(roomId).emit('queue:update', { queue: room.queue, playback: room.playback });
+    broadcastQueueUpdate(roomId, room);
+  });
+
+  socket.on('queue:toggle-hidden', ({ id }) => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room) return;
+    const item = room.queue.find((entry) => entry.id === id);
+    if (!item) return;
+
+    item.hidden = !item.hidden;
+    if (item.hidden && room.queue[room.playback.trackIndex]?.id === id) {
+      const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
+      const prevIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, -1);
+      room.playback.trackIndex = nextIndex !== -1 ? nextIndex : prevIndex;
+      if (room.playback.trackIndex === -1) room.playback.playing = false;
+    }
+
+    broadcastQueueUpdate(roomId, room);
+  });
+
+  socket.on('queue:reorder', ({ fromIndex, toIndex }) => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room) return;
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= room.queue.length || toIndex >= room.queue.length) return;
+
+    const currentId = room.queue[room.playback.trackIndex]?.id;
+    const [moved] = room.queue.splice(fromIndex, 1);
+    room.queue.splice(toIndex, 0, moved);
+    room.playback.trackIndex = room.queue.findIndex((item) => item.id === currentId);
+
+    broadcastQueueUpdate(roomId, room);
   });
 
   socket.on('queue:play', () => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
-    if (!room || room.playback.trackIndex === -1) return;
+    if (!room) return;
+    normalizePlayback(room);
+    if (room.playback.trackIndex === -1) return;
     room.playback.playing = true;
-    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+    broadcastQueuePlayback(roomId, room, socket.data.username);
   });
 
   socket.on('queue:pause', () => {
@@ -545,31 +650,50 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room) return;
     room.playback.playing = false;
-    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+    broadcastQueuePlayback(roomId, room, socket.data.username);
   });
 
   socket.on('queue:skip', () => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
     if (!room || !room.queue.length) return;
-    if (room.playback.trackIndex < room.queue.length - 1) room.playback.trackIndex++;
-    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+    const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
+    if (nextIndex !== -1) room.playback.trackIndex = nextIndex;
+    else room.playback.playing = false;
+    broadcastQueuePlayback(roomId, room, socket.data.username);
   });
 
   socket.on('queue:prev', () => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
     if (!room || !room.queue.length) return;
-    if (room.playback.trackIndex > 0) room.playback.trackIndex--;
-    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+    const prevIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, -1);
+    if (prevIndex !== -1) room.playback.trackIndex = prevIndex;
+    broadcastQueuePlayback(roomId, room, socket.data.username);
   });
 
   socket.on('queue:jump', ({ index }) => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
-    if (!room || index < 0 || index >= room.queue.length) return;
+    if (!room || index < 0 || index >= room.queue.length || room.queue[index]?.hidden) return;
     room.playback.trackIndex = index;
-    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
+    broadcastQueuePlayback(roomId, room, socket.data.username);
+  });
+
+  socket.on('queue:track-ended', ({ id }) => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room || !room.playback.playing) return;
+    if (room.queue[room.playback.trackIndex]?.id !== id) return;
+
+    const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
+    if (nextIndex === -1) {
+      room.playback.playing = false;
+    } else {
+      room.playback.trackIndex = nextIndex;
+    }
+
+    broadcastQueuePlayback(roomId, room, socket.data.username);
   });
 
   // ── Chat ──────────────────────────────────────────────────────────────────
