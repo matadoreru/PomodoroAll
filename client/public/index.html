@@ -20,14 +20,14 @@
   <div class="flex flex-col gap-7 p-12 w-[min(460px,92vw)] rounded-[24px] border"
        style="background:var(--surface);border-color:var(--border)">
 
-    <div>
-      <div class="flex items-center gap-3 mb-1">
-        <span class="material-symbols-rounded text-[28px] animate-pulse-glow" style="color:var(--accent)">timer</span>
-        <h1 class="font-serif text-[22px] font-normal tracking-tight">
+    <div class="flex items-center gap-3">
+      <span class="material-symbols-rounded text-[32px] animate-pulse-glow" style="color:var(--accent)">timer</span>
+      <div>
+        <h1 class="font-serif text-[22px] font-normal tracking-tight leading-tight">
           Pomodoro<span style="color:var(--accent)">Sync</span>
         </h1>
+        <p class="text-[13px]" style="color:var(--text-muted)">Estudia en sincronía con tus amigos.</p>
       </div>
-      <p class="text-[13px] -mt-5" style="color:var(--text-muted)">Estudia en sincronía con tus amigos.</p>
     </div>
 
     <div class="flex flex-col gap-2">
@@ -67,20 +67,24 @@
 <div id="screen-app" class="h-screen flex-col overflow-hidden">
 
   <!-- Header -->
-  <header class="flex items-center justify-between px-6 py-4 border-b shrink-0"
-          style="border-color:var(--border)">
-    <div class="flex items-center gap-2 font-serif text-[17px] font-normal">
+  <header class="border-b shrink-0 flex items-center justify-between px-5 py-3
+                 md:grid md:px-0 md:py-0 md:items-center"
+          style="border-color:var(--border); grid-template-columns: 220px 1fr 420px">
+
+    <div class="flex items-center gap-2 font-serif text-[17px] font-normal md:px-5 md:py-4">
       <span class="material-symbols-rounded text-[20px]" style="color:var(--accent)">timer</span>
       <span>PomodoroSync</span>
     </div>
 
-    <button class="room-badge" onclick="openShareModal()" title="Compartir sala">
-      <span class="material-symbols-rounded text-[14px]">link</span>
-      <span>Sala:</span>
-      <span class="code" id="header-room-code">——</span>
-    </button>
+    <div class="md:flex md:items-center md:justify-center">
+      <button class="room-badge" onclick="openShareModal()" title="Compartir sala">
+        <span class="material-symbols-rounded text-[14px]">link</span>
+        <span>Sala:</span>
+        <span class="code" id="header-room-code">——</span>
+      </button>
+    </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 md:justify-end md:px-5 md:py-4">
       <button class="icon-btn" id="btn-toggle-chat" onclick="toggleChat()" title="Chat">
         <span class="material-symbols-rounded text-[18px]">chat</span>
       </button>
@@ -161,7 +165,7 @@
     </main>
 
     <!-- Right panel: Música + Chat (pestañas) -->
-    <aside class="panel-right w-[380px] border-l flex flex-col shrink-0" id="panel-right"
+    <aside class="panel-right w-[420px] border-l flex flex-col shrink-0" id="panel-right"
            style="border-color:var(--border)">
 
       <!-- Tab bar -->

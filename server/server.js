@@ -25,10 +25,6 @@ const io = new Server(httpServer, {
 // ─── Servir archivos estáticos del cliente ─────────────────────────────────
 app.use(express.static(path.join(__dirname, '../client/public')));
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/public/index.html'));
-});
-
 // ─── Estado en memoria de las salas ──────────────────────────────────────────
 const rooms = {};
 
@@ -47,6 +43,10 @@ function getPublicRooms() {
 
 app.get('/api/rooms', (req, res) => res.json(getPublicRooms()));
 
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/public/index.html'));
+});
+
 /**
  * Crea una sala con su estado inicial del temporizador Pomodoro.
  */
@@ -63,6 +63,7 @@ function createRoom(roomId) {
       pomodoroCount: 0,
     },
     settings,
+    music: { playlistId: null, preset: null },
     messages: [],
     createdAt: Date.now()
   };
@@ -170,6 +171,7 @@ io.on('connection', (socket) => {
       timer: getTimerSnapshot(rooms[roomId]),
       users: Object.values(rooms[roomId].users),
       settings: rooms[roomId].settings,
+      music: rooms[roomId].music,
     });
     io.emit('rooms:update', getPublicRooms());
   });
@@ -213,6 +215,7 @@ io.on('connection', (socket) => {
       users: Object.values(room.users),
       messages: room.messages.slice(-20),
       settings: room.settings,
+      music: room.music,
     });
     io.emit('rooms:update', getPublicRooms());
   });
@@ -312,6 +315,16 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('settings:sync', room.settings);
     broadcastTimer(roomId);
     console.log(`[CFG] Sala ${roomId}: estudio=${study}m descanso=${short_break}m largo=${long_break}m`);
+  });
+
+  // ── Música compartida ─────────────────────────────────────────────────────
+  socket.on('music:change', ({ playlistId, preset }) => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room) return;
+    if (playlistId && !/^[a-zA-Z0-9]{10,40}$/.test(playlistId)) return;
+    room.music = { playlistId: playlistId || null, preset: preset || null };
+    io.to(roomId).emit('music:sync', { ...room.music, username: socket.data.username });
   });
 
   // ── Chat ──────────────────────────────────────────────────────────────────

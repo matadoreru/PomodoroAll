@@ -6,10 +6,10 @@ const SERVER_URL = window.location.hostname === 'localhost'
   : window.location.origin;
 
 const SPOTIFY_PLAYLISTS = {
-  lofi:      '0vvXsWCC9xrXsKd4eVbQVz',
+  lofi:      '37i9dQZF1DWWQbjWnn4C31',
   synthwave: '37i9dQZF1DX9RwfGbeGQwP',
   classical: '37i9dQZF1DWWEJlAGA9gs0',
-  jazz:      '37i9dQZF1DWV7EzJpy1ne1',
+  jazz:      '37i9dQZF1DXbITWG1ZJKYt',
 };
 
 // ─── Estado de la aplicación ─────────────────────────────────────────────────
@@ -119,6 +119,11 @@ function connectSocket() {
     PHASE_DURATIONS.long_break  = s.long_break;
     syncSettingsInputs();
   });
+
+  socket.on('music:sync', ({ playlistId, preset, username }) => {
+    _setSpotifyWidget(playlistId || null, preset || null);
+    if (username !== myUsername) showToast(`${escapeHtml(username)} cambió la playlist`);
+  });
 }
 
 // ─── Crear sala ──────────────────────────────────────────────────────────────
@@ -167,13 +172,14 @@ function handleJoin() {
 }
 
 // ─── Entrar a la app ─────────────────────────────────────────────────────────
-function enterApp({ roomId, timer, users, settings }, messages = []) {
+function enterApp({ roomId, timer, users, settings, music }, messages = []) {
   stopLobbyRefresh();
   if (settings) {
     PHASE_DURATIONS.study       = settings.study;
     PHASE_DURATIONS.short_break = settings.short_break;
     PHASE_DURATIONS.long_break  = settings.long_break;
   }
+  if (music?.playlistId) _setSpotifyWidget(music.playlistId, music.preset || null);
   currentRoomId = roomId;
 
   document.getElementById('header-room-code').textContent = roomId;
@@ -380,22 +386,17 @@ function showFloatingReaction(emoji, from) {
 }
 
 // ─── Spotify ─────────────────────────────────────────────────────────────────
-function loadSpotifyPlaylist(preset) {
+function _setSpotifyWidget(playlistId, preset) {
   document.querySelectorAll('.spotify-preset').forEach(b => b.classList.remove('active'));
-
-  if (currentSpotifyPreset === preset) {
+  currentSpotifyPreset = preset || null;
+  if (preset) document.getElementById(`preset-${preset}`)?.classList.add('active');
+  if (!playlistId) {
     document.getElementById('spotify-widget-frame').innerHTML = `
       <div style="height:80px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;">
         Elige una playlist ↓
       </div>`;
-    currentSpotifyPreset = null;
     return;
   }
-
-  currentSpotifyPreset = preset;
-  document.getElementById(`preset-${preset}`)?.classList.add('active');
-
-  const playlistId = SPOTIFY_PLAYLISTS[preset];
   document.getElementById('spotify-widget-frame').innerHTML = `
     <iframe
       src="https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0"
@@ -403,6 +404,17 @@ function loadSpotifyPlaylist(preset) {
       allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
       loading="lazy"
     ></iframe>`;
+}
+
+function loadSpotifyPlaylist(preset) {
+  if (currentSpotifyPreset === preset) {
+    _setSpotifyWidget(null, null);
+    if (socket && currentRoomId) socket.emit('music:change', { playlistId: null, preset: null });
+    return;
+  }
+  const playlistId = SPOTIFY_PLAYLISTS[preset];
+  _setSpotifyWidget(playlistId, preset);
+  if (socket && currentRoomId) socket.emit('music:change', { playlistId, preset });
 }
 
 // ─── Pestañas panel derecho ───────────────────────────────────────────────────
@@ -446,17 +458,8 @@ function loadCustomPlaylist() {
     return;
   }
 
-  document.querySelectorAll('.spotify-preset').forEach(b => b.classList.remove('active'));
-  currentSpotifyPreset = null;
-
-  document.getElementById('spotify-widget-frame').innerHTML = `
-    <iframe
-      src="https://open.spotify.com/embed/playlist/${id}?utm_source=generator&theme=0"
-      width="100%" height="352" frameborder="0" allowfullscreen=""
-      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-      loading="lazy"
-    ></iframe>`;
-
+  _setSpotifyWidget(id, null);
+  if (socket && currentRoomId) socket.emit('music:change', { playlistId: id, preset: null });
   input.value = '';
   showToast('✓ Playlist cargada');
 }
