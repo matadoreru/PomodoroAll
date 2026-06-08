@@ -92,9 +92,6 @@
     </div>
 
     <div class="flex items-center gap-2 md:justify-end md:px-5 md:py-4">
-      <button class="icon-btn" id="btn-toggle-chat" onclick="toggleChat()" title="Chat">
-        <span class="material-symbols-rounded text-[18px]">chat</span>
-      </button>
       <button class="icon-btn" onclick="openSettings()" title="Configurar temporizador">
         <span class="material-symbols-rounded text-[18px]">settings</span>
       </button>
@@ -226,7 +223,7 @@
           </div>
 
           <!-- Aviso Spotify -->
-          <p class="text-[10px] mt-2 flex items-center gap-1" style="color:var(--text-muted)">
+          <p class="text-[10px] mt-2 flex items-center gap-1" id="spotify-login-hint" style="color:var(--text-muted)">
             <span class="material-symbols-rounded text-[12px]">info</span>
             Inicia sesión en <a href="https://open.spotify.com" target="_blank" style="color:#1DB954;margin-left:2px">Spotify</a>&nbsp;para escuchar completo.
           </p>

@@ -31,6 +31,7 @@ let renderedTrackKey = '';
 let spotifyIframeApiReady = false;
 let spotifyEmbedController = null;
 let spotifyLoadedUri = '';
+let spotifySessionDetected = false;
 
 let PHASE_DURATIONS = {
   study:        25 * 60,
@@ -250,6 +251,8 @@ function handleLeave() {
   if (socket) { socket.disconnect(); socket = null; }
   clearInterval(localTickInterval);
   if (spotifyEmbedController) spotifyEmbedController.pause();
+  spotifySessionDetected = false;
+  updateSpotifyLoginHint();
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('screen-lobby').style.display = 'flex';
   history.pushState({}, '', '/');
@@ -532,8 +535,28 @@ function ensureSpotifyController() {
   }, (EmbedController) => {
     spotifyEmbedController = EmbedController;
     spotifyLoadedUri = initialUri;
+    if (typeof spotifyEmbedController.addListener === 'function') {
+      spotifyEmbedController.addListener('playback_started', () => markSpotifySessionDetected());
+      spotifyEmbedController.addListener('playback_update', (event) => {
+        if (event?.data && (!event.data.isPaused || event.data.position > 0)) {
+          markSpotifySessionDetected();
+        }
+      });
+    }
     syncSpotifyController();
   });
+}
+
+function markSpotifySessionDetected() {
+  if (spotifySessionDetected) return;
+  spotifySessionDetected = true;
+  updateSpotifyLoginHint();
+}
+
+function updateSpotifyLoginHint() {
+  const hint = document.getElementById('spotify-login-hint');
+  if (!hint) return;
+  hint.classList.toggle('hidden', spotifySessionDetected);
 }
 
 function syncSpotifyController() {
@@ -655,7 +678,6 @@ function switchRightTab(tab) {
   document.getElementById('right-chat').classList.toggle('hidden', isMusic);
   document.getElementById('tab-music').classList.toggle('active', isMusic);
   document.getElementById('tab-chat-tab').classList.toggle('active', !isMusic);
-  document.getElementById('btn-toggle-chat').classList.toggle('active', !isMusic);
   if (window.innerWidth <= 768) {
     document.getElementById('panel-right').classList.add('mobile-open');
   }
@@ -665,7 +687,6 @@ function toggleChat() {
   const chatVisible = !document.getElementById('right-chat').classList.contains('hidden');
   if (chatVisible && window.innerWidth <= 768) {
     document.getElementById('panel-right').classList.remove('mobile-open');
-    document.getElementById('btn-toggle-chat').classList.remove('active');
   } else {
     switchRightTab(chatVisible ? 'music' : 'chat');
   }

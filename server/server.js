@@ -42,7 +42,7 @@ function stripTags(value = '') {
   return decodeHtmlEntities(value.replace(/<[^>]+>/g, '')).trim();
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 5000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -109,8 +109,12 @@ function extractPlaylistTracks(html, addedBy, sourceTitle = '') {
     seen.add(spotifyId);
 
     const slice = html.slice(Math.max(0, match.index - 500), Math.min(html.length, match.index + 2000));
+    const titleMatch = slice.match(
+      new RegExp(`href="\\/track\\/${spotifyId}"[^>]*>[\\s\\S]*?data-encore-id="listRowTitle"[^>]*>[\\s\\S]*?<span[^>]*>([^<]+)<\\/span>`)
+    );
     const title = decodeHtmlEntities(
-      slice.match(/aria-label="([^"]+)"/)?.[1]
+      titleMatch?.[1]
+      || slice.match(/aria-label="([^"]+)"/)?.[1]
       || slice.match(/--encore-line-clamp:1">([^<]+)</)?.[1]
       || 'Canción de Spotify'
     );
@@ -137,7 +141,7 @@ async function resolvePlaylistItems(spotifyId, addedBy) {
     headers: {
       'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36'
     }
-  }, 5000);
+  }, 12000);
   if (!response.ok) throw new Error(`Spotify playlist ${response.status}`);
 
   const html = await response.text();
