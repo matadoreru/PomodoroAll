@@ -12,6 +12,8 @@ const SPOTIFY_SCOPES = [
   'streaming',
   'user-read-email',
   'user-read-private',
+  'playlist-read-private',
+  'playlist-read-collaborative',
   'user-modify-playback-state',
   'user-read-playback-state'
 ].join(' ');
@@ -57,6 +59,7 @@ let lastSyncedTrackId = '';
 let lastSyncedPlaybackBucket = -1;
 let dragQueueIndex = -1;
 let lastTrackEndReportedId = '';
+let queueAdvanceTimeout = null;
 
 let PHASE_DURATIONS = {
   study:        25 * 60,
@@ -164,6 +167,7 @@ function connectSocket() {
     renderQueueList();
     renderNowPlaying();
     updatePlaybackButtons();
+    scheduleQueueAutoAdvance();
     ensureSpotifyController();
     syncSpotifyController();
   });
@@ -186,6 +190,7 @@ function connectSocket() {
           ? `${escapeHtml(username)} reanudó la música`
           : `${escapeHtml(username)} pausó la música`);
     }
+    scheduleQueueAutoAdvance();
     ensureSpotifyController();
     syncSpotifyController();
   });
@@ -277,6 +282,7 @@ function enterApp({ roomId, name, timer, users, settings, queue, playback }, mes
 function handleLeave() {
   if (socket) { socket.disconnect(); socket = null; }
   clearInterval(localTickInterval);
+  clearTimeout(queueAdvanceTimeout);
   if (spotifyPlayer) spotifyPlayer.pause().catch?.(() => {});
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('screen-lobby').style.display = 'flex';
@@ -598,7 +604,21 @@ async function spotifyApi(path, options = {}, allowRetry = true) {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Spotify API ${response.status}`);
+    let message = `Spotify API ${response.status}`;
+    try {
+      const data = JSON.parse(text);
+      message = data?.error?.message || data?.error_description || message;
+      if (response.status === 403) {
+        message = 'Spotify no permite leer esa playlist con tu cuenta';
+      }
+    } catch {
+      if (response.status === 403) {
+        message = 'Spotify no permite leer esa playlist con tu cuenta';
+      } else if (text) {
+        message = text;
+      }
+    }
+    throw new Error(message);
   }
 
   if (response.status === 204) return null;
@@ -923,6 +943,21 @@ function getPlaybackPositionMs() {
   if (!currentPlayback) return 0;
   if (!currentPlayback.playing || !currentPlayback.startedAt) return currentPlayback.positionMs || 0;
   return Math.max(0, (currentPlayback.positionMs || 0) + (Date.now() - currentPlayback.startedAt));
+}
+
+function scheduleQueueAutoAdvance() {
+  clearTimeout(queueAdvanceTimeout);
+  queueAdvanceTimeout = null;
+
+  const item = currentQueue[currentPlayback.trackIndex];
+  if (!socket || !currentRoomId || !currentPlayback.playing || !item?.id || !item.durationMs) return;
+
+  const remainingMs = Math.max(0, item.durationMs - getPlaybackPositionMs());
+  queueAdvanceTimeout = setTimeout(() => {
+    if (!socket || !currentRoomId || lastTrackEndReportedId === item.id) return;
+    lastTrackEndReportedId = item.id;
+    socket.emit('queue:track-ended', { id: item.id });
+  }, remainingMs + 250);
 }
 
 async function syncSpotifyController(force = false) {
