@@ -29,6 +29,7 @@ let currentQueue = [];
 let currentPlayback = { trackIndex: -1, playing: false };
 let renderedTrackIndex = -2;
 let renderedTrackUri = null;
+let renderedQueueSignature = '';
 let spotifyIframeApi = null;
 let spotifyEmbedController = null;
 let spotifyEmbedReady = false;
@@ -490,6 +491,10 @@ function getCurrentQueueItem() {
   return currentQueue[currentPlayback.trackIndex] || null;
 }
 
+function getQueueSignature() {
+  return currentQueue.map(item => `${item.id}:${item.spotifyUri || item.embedUrl || ''}`).join('|');
+}
+
 function getSpotifyUri(item) {
   if (!item) return null;
   if (item.spotifyUri) return item.spotifyUri;
@@ -573,10 +578,16 @@ function renderNowPlaying() {
 
   const item = getCurrentQueueItem();
   const itemUri = getSpotifyUri(item);
+  const queueSignature = getQueueSignature();
 
-  if (currentPlayback.trackIndex !== renderedTrackIndex || itemUri !== renderedTrackUri) {
+  if (
+    currentPlayback.trackIndex !== renderedTrackIndex ||
+    itemUri !== renderedTrackUri ||
+    queueSignature !== renderedQueueSignature
+  ) {
     renderedTrackIndex = currentPlayback.trackIndex;
     renderedTrackUri = itemUri;
+    renderedQueueSignature = queueSignature;
     if (!item) {
       syncSpotifyEmbed();
     } else {
