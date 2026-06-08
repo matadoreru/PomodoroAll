@@ -767,75 +767,42 @@ io.on('connection', (socket) => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
     if (!room || !room.queue.length) return;
-<<<<<<< HEAD
-    syncPlaybackClock(room);
-    const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
-=======
-<<<<<<< Updated upstream
-    if (room.playback.trackIndex < room.queue.length - 1) room.playback.trackIndex++;
-    room.playback.playing = false;
-    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
-=======
     syncPlaybackClock(room);
     const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
     const loopIndex = getFirstPlayableIndex(room.queue);
->>>>>>> 5b3698b (Fix)
     if (nextIndex !== -1) {
       room.playback.trackIndex = nextIndex;
       room.playback.positionMs = 0;
       room.playback.startedAt = room.playback.playing ? Date.now() : null;
-<<<<<<< HEAD
-=======
     } else if (loopIndex !== -1) {
       room.playback.trackIndex = loopIndex;
       room.playback.positionMs = 0;
       room.playback.startedAt = room.playback.playing ? Date.now() : null;
->>>>>>> 5b3698b (Fix)
     } else {
       room.playback.playing = false;
       room.playback.positionMs = 0;
       room.playback.startedAt = null;
     }
     broadcastQueuePlayback(roomId, room, socket.data.username);
-<<<<<<< HEAD
-=======
->>>>>>> Stashed changes
->>>>>>> 5b3698b (Fix)
   });
 
   socket.on('queue:prev', () => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
     if (!room || !room.queue.length) return;
-<<<<<<< HEAD
-    syncPlaybackClock(room);
-    const prevIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, -1);
-=======
-<<<<<<< Updated upstream
-    if (room.playback.trackIndex > 0) room.playback.trackIndex--;
-    room.playback.playing = false;
-    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
-=======
     syncPlaybackClock(room);
     const prevIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, -1);
     const loopIndex = [...room.queue].reverse().findIndex((item) => !item.hidden);
->>>>>>> 5b3698b (Fix)
     if (prevIndex !== -1) {
       room.playback.trackIndex = prevIndex;
       room.playback.positionMs = 0;
       room.playback.startedAt = room.playback.playing ? Date.now() : null;
-<<<<<<< HEAD
-    }
-    broadcastQueuePlayback(roomId, room, socket.data.username);
-=======
     } else if (loopIndex !== -1) {
       room.playback.trackIndex = room.queue.length - 1 - loopIndex;
       room.playback.positionMs = 0;
       room.playback.startedAt = room.playback.playing ? Date.now() : null;
     }
     broadcastQueuePlayback(roomId, room, socket.data.username);
->>>>>>> Stashed changes
->>>>>>> 5b3698b (Fix)
   });
 
   socket.on('queue:jump', ({ index }) => {
@@ -844,18 +811,9 @@ io.on('connection', (socket) => {
     if (!room || index < 0 || index >= room.queue.length || room.queue[index]?.hidden) return;
     syncPlaybackClock(room);
     room.playback.trackIndex = index;
-<<<<<<< HEAD
-    room.playback.positionMs = 0;
-    room.playback.startedAt = room.playback.playing ? Date.now() : null;
-=======
-<<<<<<< Updated upstream
-    room.playback.playing = false;
-    io.to(roomId).emit('queue:playback', { playback: room.playback, username: socket.data.username });
-=======
     room.playback.positionMs = 0;
     room.playback.playing = true;
     room.playback.startedAt = Date.now();
->>>>>>> 5b3698b (Fix)
     broadcastQueuePlayback(roomId, room, socket.data.username);
   });
 
@@ -867,30 +825,18 @@ io.on('connection', (socket) => {
 
     syncPlaybackClock(room);
     const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
-<<<<<<< HEAD
-    if (nextIndex === -1) {
-=======
     const loopIndex = getFirstPlayableIndex(room.queue);
     if (nextIndex === -1 && loopIndex === -1) {
->>>>>>> 5b3698b (Fix)
       room.playback.playing = false;
       room.playback.positionMs = 0;
       room.playback.startedAt = null;
     } else {
-<<<<<<< HEAD
-      room.playback.trackIndex = nextIndex;
-=======
       room.playback.trackIndex = nextIndex !== -1 ? nextIndex : loopIndex;
->>>>>>> 5b3698b (Fix)
       room.playback.positionMs = 0;
       room.playback.startedAt = Date.now();
     }
 
     broadcastQueuePlayback(roomId, room, socket.data.username);
-<<<<<<< HEAD
-=======
->>>>>>> Stashed changes
->>>>>>> 5b3698b (Fix)
   });
 
   // ── Chat ──────────────────────────────────────────────────────────────────
