@@ -96,9 +96,19 @@ const THEMES = {
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   const roomCode = params.get('room');
+  const savedUsername = localStorage.getItem('pomodoro_username');
+
+  if (savedUsername) {
+    document.getElementById('input-username').value = savedUsername;
+  }
+
   if (roomCode) {
     document.getElementById('input-roomcode').value = roomCode.toUpperCase();
-    document.getElementById('input-username').focus();
+    if (savedUsername) {
+      handleJoin();
+    } else {
+      document.getElementById('input-username').focus();
+    }
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -301,6 +311,8 @@ function enterApp({ roomId, name, timer, users, settings, queue, playback, shuff
   document.getElementById('header-room-name').textContent = name || roomId;
   document.getElementById('modal-room-code').textContent = roomId;
   document.getElementById('share-url-input').value = `${window.location.origin}?room=${roomId}`;
+
+  localStorage.setItem('pomodoro_username', myUsername);
 
   document.getElementById('screen-lobby').style.display = 'none';
   document.getElementById('screen-app').classList.add('active');
