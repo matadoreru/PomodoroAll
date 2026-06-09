@@ -60,6 +60,11 @@ let lastSyncedPlaybackBucket = -1;
 let dragQueueIndex = -1;
 let lastTrackEndReportedId = '';
 let queueAdvanceTimeout = null;
+let currentShuffle = false;
+let clockInterval = null;
+let firstPomodoroTime = null;
+let lastPomodoroTime = null;
+let currentTheme = localStorage.getItem('pomodoro_theme') || 'oscuro';
 
 let PHASE_DURATIONS = {
   study:        25 * 60,
@@ -77,6 +82,14 @@ const PHASE_HUES = {
   study:        340,
   short_break:  195,
   long_break:   145,
+};
+
+const THEMES = {
+  oscuro:   { label: 'Oscuro',   swatch: '#F472B6', vars: { '--bg': '#0f0f13', '--surface': '#17171e', '--surface-2': '#1e1e28', '--border': 'rgba(255,255,255,0.07)', '--text': '#e8e6f0', '--text-muted': '#6b6880', '--text-dim': '#9d9ab0' }, hues: { study: 340, short_break: 195, long_break: 145 } },
+  aurora:   { label: 'Aurora',   swatch: '#C084FC', vars: { '--bg': '#0f0e15', '--surface': '#18162a', '--surface-2': '#201d35', '--border': 'rgba(255,255,255,0.08)', '--text': '#e8e4f5', '--text-muted': '#6a6080', '--text-dim': '#9a93b8' }, hues: { study: 280, short_break: 210, long_break: 155 } },
+  bosque:   { label: 'Bosque',   swatch: '#4ADE80', vars: { '--bg': '#0a110c', '--surface': '#121912', '--surface-2': '#182018', '--border': 'rgba(255,255,255,0.07)', '--text': '#e4f0e6', '--text-muted': '#60756a', '--text-dim': '#8fa898' }, hues: { study: 140, short_break: 185, long_break: 90 } },
+  oceano:   { label: 'Océano',   swatch: '#38BDF8', vars: { '--bg': '#0b1018', '--surface': '#121a24', '--surface-2': '#182330', '--border': 'rgba(255,255,255,0.07)', '--text': '#e2ecf5', '--text-muted': '#5a7090', '--text-dim': '#8aa5be' }, hues: { study: 200, short_break: 250, long_break: 165 } },
+  amanecer: { label: 'Amanecer', swatch: '#FB923C', vars: { '--bg': '#110c08', '--surface': '#1c1308', '--surface-2': '#251a0e', '--border': 'rgba(255,255,255,0.07)', '--text': '#f5ede0', '--text-muted': '#806050', '--text-dim': '#b59078' }, hues: { study: 25, short_break: 190, long_break: 125 } },
 };
 
 // ─── Inicialización ──────────────────────────────────────────────────────────
@@ -101,6 +114,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initSpotifyIframeApi();
   updateSpotifyAuthUI();
   updateSpotifyVolumeUI();
+  applyTheme(currentTheme);
 });
 
 // ─── Conexión Socket ─────────────────────────────────────────────────────────
@@ -123,10 +137,27 @@ function connectSocket() {
   socket.on('timer:sync', (timer) => applyTimerState(timer));
 
   socket.on('timer:complete', ({ phase, timer }) => {
-    showToast(phase === 'study'
+    const justCompletedStudy = phase === 'short_break' || phase === 'long_break';
+
+    showToast(justCompletedStudy
       ? '🎉 ¡Pomodoro completado! Tiempo de descansar.'
       : '💪 ¡Descanso terminado! A estudiar.');
     playNotificationSound();
+
+    if (justCompletedStudy) {
+      const now = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+      if (!firstPomodoroTime) firstPomodoroTime = now;
+      lastPomodoroTime = now;
+      updateSessionStats();
+      if (currentQueue.length > 0 && currentPlayback.trackIndex !== -1) {
+        socket.emit('queue:skip');
+      }
+    }
+
+    if (currentPlayback.playing) {
+      socket.emit('queue:pause');
+    }
+
     applyTimerState(timer);
     updatePhaseUI(timer.phase);
   });
@@ -160,9 +191,10 @@ function connectSocket() {
     syncSettingsInputs();
   });
 
-  socket.on('queue:update', ({ queue, playback }) => {
+  socket.on('queue:update', ({ queue, playback, shuffle }) => {
     currentQueue   = queue;
     currentPlayback = playback;
+    if (shuffle !== undefined) currentShuffle = shuffle;
     lastTrackEndReportedId = '';
     renderQueueList();
     renderNowPlaying();
@@ -172,9 +204,10 @@ function connectSocket() {
     syncSpotifyController();
   });
 
-  socket.on('queue:playback', ({ playback, username }) => {
+  socket.on('queue:playback', ({ playback, username, shuffle }) => {
     const prevIdx = currentPlayback.trackIndex;
     currentPlayback = playback;
+    if (shuffle !== undefined) currentShuffle = shuffle;
     lastTrackEndReportedId = '';
     if (playback.trackIndex !== prevIdx) {
       renderQueueList();
@@ -243,7 +276,7 @@ function handleJoin() {
 }
 
 // ─── Entrar a la app ─────────────────────────────────────────────────────────
-function enterApp({ roomId, name, timer, users, settings, queue, playback }, messages = []) {
+function enterApp({ roomId, name, timer, users, settings, queue, playback, shuffle }, messages = []) {
   stopLobbyRefresh();
   if (settings) {
     PHASE_DURATIONS.study       = settings.study;
@@ -252,12 +285,17 @@ function enterApp({ roomId, name, timer, users, settings, queue, playback }, mes
   }
   currentQueue    = queue    || [];
   currentPlayback = playback || { trackIndex: -1, playing: false, positionMs: 0, startedAt: null };
+  currentShuffle  = !!shuffle;
+  firstPomodoroTime = null;
+  lastPomodoroTime  = null;
   renderedTrackKey = '';
   renderQueueList();
   renderNowPlaying();
   updatePlaybackButtons();
+  updateSessionStats();
   ensureSpotifyController();
   syncSpotifyController();
+  startClock();
   currentRoomId = roomId;
 
   document.getElementById('header-room-name').textContent = name || roomId;
@@ -282,6 +320,8 @@ function enterApp({ roomId, name, timer, users, settings, queue, playback }, mes
 function handleLeave() {
   if (socket) { socket.disconnect(); socket = null; }
   clearInterval(localTickInterval);
+  clearInterval(clockInterval);
+  clockInterval = null;
   clearTimeout(queueAdvanceTimeout);
   if (spotifyPlayer) spotifyPlayer.pause().catch?.(() => {});
   document.getElementById('screen-app').classList.remove('active');
@@ -959,9 +999,12 @@ function ensureSpotifyController() {
 
     const item = currentQueue[currentPlayback.trackIndex];
     if (!socket || !currentRoomId || !item || item.id === lastTrackEndReportedId) return;
-    const prevPosition = state.position || 0;
+    const position = state.position || 0;
     const duration = state.duration || 0;
-    if (state.paused && duration > 0 && prevPosition >= duration - 1500) {
+    const nearEnd = state.paused && duration > 0 && position >= duration - 1500;
+    const wrappedAround = state.paused && position === 0 && duration > 0
+      && (state.track_window?.previous_tracks?.length ?? 0) > 0;
+    if (nearEnd || wrappedAround) {
       lastTrackEndReportedId = item.id;
       socket.emit('queue:track-ended', { id: item.id });
     }
@@ -1171,6 +1214,9 @@ function updatePlaybackButtons() {
   const visibleCount = currentQueue.filter(item => !item.hidden).length;
   if (skip) skip.disabled = visibleCount <= 1;
   if (prev) prev.disabled = visibleCount <= 1;
+
+  const shuffleBtn = document.getElementById('btn-shuffle');
+  if (shuffleBtn) shuffleBtn.classList.toggle('active', currentShuffle);
 }
 
 // ─── Pestañas panel derecho ───────────────────────────────────────────────────
@@ -1231,6 +1277,9 @@ function openSettings() {
   document.getElementById('settings-study').value       = Math.round(PHASE_DURATIONS.study / 60);
   document.getElementById('settings-short-break').value = Math.round(PHASE_DURATIONS.short_break / 60);
   document.getElementById('settings-long-break').value  = Math.round(PHASE_DURATIONS.long_break / 60);
+  document.querySelectorAll('.theme-swatch').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === currentTheme);
+  });
   document.getElementById('modal-settings').classList.add('open');
 }
 
@@ -1357,18 +1406,23 @@ function initResizeHandle() {
 // ─── Sonido de notificación ───────────────────────────────────────────────────
 function playNotificationSound() {
   try {
-    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.setValueAtTime(600, ctx.currentTime);
-    osc.frequency.setValueAtTime(800, ctx.currentTime + 0.1);
-    osc.frequency.setValueAtTime(600, ctx.currentTime + 0.2);
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(t) {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(600, t);
+      osc.frequency.setValueAtTime(820, t + 0.07);
+      osc.frequency.setValueAtTime(600, t + 0.14);
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+      osc.start(t);
+      osc.stop(t + 0.32);
+    }
+    playBeep(ctx.currentTime);
+    playBeep(ctx.currentTime + 0.42);
+    playBeep(ctx.currentTime + 0.84);
   } catch (e) {}
 }
 
@@ -1387,4 +1441,57 @@ function hashCode(str) {
     h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
   }
   return Math.abs(h);
+}
+
+// ─── Reloj en tiempo real ─────────────────────────────────────────────────────
+function startClock() {
+  clearInterval(clockInterval);
+  updateClock();
+  clockInterval = setInterval(updateClock, 1000);
+}
+
+function updateClock() {
+  const el = document.getElementById('real-time-clock');
+  if (!el) return;
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  el.textContent = `${h}:${m}:${s}`;
+}
+
+// ─── Estadísticas de sesión ───────────────────────────────────────────────────
+function updateSessionStats() {
+  const firstEl = document.getElementById('stat-first-pomodoro');
+  const lastEl  = document.getElementById('stat-last-pomodoro');
+  if (firstEl) firstEl.textContent = firstPomodoroTime || '—';
+  if (lastEl)  lastEl.textContent  = lastPomodoroTime  || '—';
+}
+
+// ─── Shuffle ──────────────────────────────────────────────────────────────────
+function toggleShuffle() {
+  if (!socket || !currentRoomId) return;
+  socket.emit('queue:set-shuffle', { shuffle: !currentShuffle });
+}
+
+// ─── Temas ────────────────────────────────────────────────────────────────────
+function applyTheme(key) {
+  const theme = THEMES[key] || THEMES.oscuro;
+  const root  = document.documentElement;
+  for (const [varName, value] of Object.entries(theme.vars)) {
+    root.style.setProperty(varName, value);
+  }
+  PHASE_HUES.study       = theme.hues.study;
+  PHASE_HUES.short_break = theme.hues.short_break;
+  PHASE_HUES.long_break  = theme.hues.long_break;
+  updatePhaseUI(currentPhase || 'study');
+}
+
+function selectTheme(key) {
+  currentTheme = key;
+  localStorage.setItem('pomodoro_theme', key);
+  applyTheme(key);
+  document.querySelectorAll('.theme-swatch').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === key);
+  });
 }

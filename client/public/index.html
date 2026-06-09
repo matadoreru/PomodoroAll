@@ -124,6 +124,18 @@
           <span style="color:var(--text-muted)">⏱ Tiempo total</span>
           <span class="font-medium" style="color:var(--accent)" id="stat-time">0m</span>
         </div>
+        <div class="flex justify-between text-xs">
+          <span style="color:var(--text-muted)">
+            <span class="material-symbols-rounded text-[12px]" style="vertical-align:middle">play_circle</span> Primer pom.
+          </span>
+          <span class="font-medium" style="color:var(--accent)" id="stat-first-pomodoro">—</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span style="color:var(--text-muted)">
+            <span class="material-symbols-rounded text-[12px]" style="vertical-align:middle">flag</span> Último pom.
+          </span>
+          <span class="font-medium" style="color:var(--accent)" id="stat-last-pomodoro">—</span>
+        </div>
       </div>
     </aside>
 
@@ -135,6 +147,11 @@
         <button class="phase-tab active" id="tab-study" onclick="switchPhase('study')">Estudio</button>
         <button class="phase-tab" id="tab-short_break" onclick="switchPhase('short_break')">Descanso</button>
         <button class="phase-tab" id="tab-long_break" onclick="switchPhase('long_break')">Descanso largo</button>
+      </div>
+
+      <!-- Real-time clock -->
+      <div id="real-time-clock" class="z-10 font-mono text-[15px] tracking-[4px]" style="color:var(--text-muted)">
+        --:--:--
       </div>
 
       <!-- Timer ring -->
@@ -247,13 +264,16 @@
           <span class="text-[10px] font-medium uppercase tracking-[1.5px]" style="color:var(--text-muted)">
             Cola <span id="queue-count"></span>
           </span>
-          <button class="flex items-center gap-1 text-[11px] transition-colors"
-                  style="background:none;border:none;cursor:pointer;color:var(--text-muted)"
-                  onmouseover="this.style.color='hsl(0,70%,65%)'" onmouseout="this.style.color='var(--text-muted)'"
-                  onclick="queueClear()" title="Borrar toda la cola">
-            <span class="material-symbols-rounded text-[14px]">delete_sweep</span>
-            Borrar todo
-          </button>
+          <div class="flex items-center gap-2">
+            <button class="queue-action-btn" id="btn-shuffle" onclick="toggleShuffle()" title="Aleatorio">
+              <span class="material-symbols-rounded text-[15px]">shuffle</span>
+            </button>
+            <button class="queue-action-btn"
+                    onmouseover="this.style.color='hsl(0,70%,65%)'" onmouseout="this.style.color='var(--text-muted)'"
+                    onclick="queueClear()" title="Borrar toda la cola">
+              <span class="material-symbols-rounded text-[14px]">delete_sweep</span>
+            </button>
+          </div>
         </div>
 
         <!-- Lista de canciones -->
@@ -377,6 +397,23 @@
                  class="form-input w-16 text-center py-2 text-sm" />
           <span class="text-[12px]" style="color:var(--text-muted)">min</span>
         </div>
+      </div>
+    </div>
+
+    <div class="h-px" style="background:var(--border)"></div>
+
+    <!-- Tema de color -->
+    <div class="flex items-center justify-between gap-4">
+      <div class="flex flex-col gap-0.5">
+        <span class="text-[13px] font-medium">Tema</span>
+        <span class="text-[11px]" style="color:var(--text-muted)">Paleta de colores</span>
+      </div>
+      <div class="flex gap-2.5" id="theme-picker">
+        <button class="theme-swatch" data-theme="oscuro"   style="background:#F472B6" title="Oscuro"   onclick="selectTheme('oscuro')"></button>
+        <button class="theme-swatch" data-theme="aurora"   style="background:#C084FC" title="Aurora"   onclick="selectTheme('aurora')"></button>
+        <button class="theme-swatch" data-theme="bosque"   style="background:#4ADE80" title="Bosque"   onclick="selectTheme('bosque')"></button>
+        <button class="theme-swatch" data-theme="oceano"   style="background:#38BDF8" title="Océano"   onclick="selectTheme('oceano')"></button>
+        <button class="theme-swatch" data-theme="amanecer" style="background:#FB923C" title="Amanecer" onclick="selectTheme('amanecer')"></button>
       </div>
     </div>
 

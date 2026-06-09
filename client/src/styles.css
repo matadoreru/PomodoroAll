@@ -344,6 +344,28 @@
   }
   .right-tab:hover:not(.active) { color: var(--text); }
 
+  /* ─── Queue action buttons (header) ─────────── */
+  .queue-action-btn {
+    @apply flex items-center justify-center w-7 h-7 rounded-md cursor-pointer transition-all;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+  }
+  .queue-action-btn:hover { color: var(--text); }
+  .queue-action-btn.active { color: var(--accent) !important; }
+
+  /* ─── Theme swatches ──────────────────────────── */
+  .theme-swatch {
+    @apply w-6 h-6 rounded-full cursor-pointer transition-all;
+    border: 2px solid transparent;
+    outline-offset: 2px;
+  }
+  .theme-swatch:hover { transform: scale(1.15); }
+  .theme-swatch.active {
+    border-color: var(--text);
+    transform: scale(1.15);
+  }
+
   /* ─── Resize handle (panel derecho) ─────────── */
   .panel-resize-handle {
     position: absolute;

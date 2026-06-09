@@ -173,12 +173,12 @@ function normalizePlayback(room) {
 
 function broadcastQueueUpdate(roomId, room) {
   normalizePlayback(room);
-  io.to(roomId).emit('queue:update', { queue: room.queue, playback: getPlaybackSnapshot(room) });
+  io.to(roomId).emit('queue:update', { queue: room.queue, playback: getPlaybackSnapshot(room), shuffle: room.shuffle });
 }
 
 function broadcastQueuePlayback(roomId, room, username) {
   normalizePlayback(room);
-  io.to(roomId).emit('queue:playback', { playback: getPlaybackSnapshot(room), username });
+  io.to(roomId).emit('queue:playback', { playback: getPlaybackSnapshot(room), username, shuffle: room.shuffle });
 }
 
 async function resolveTrackItem(spotifyId, addedBy) {
@@ -385,6 +385,7 @@ function createRoom(roomId, name) {
     settings,
     queue: [],
     playback: { trackIndex: -1, playing: false, positionMs: 0, startedAt: null },
+    shuffle: false,
     messages: [],
     createdAt: Date.now()
   };
@@ -495,6 +496,7 @@ io.on('connection', (socket) => {
       settings: rooms[roomId].settings,
       queue: rooms[roomId].queue,
       playback: getPlaybackSnapshot(rooms[roomId]),
+      shuffle: rooms[roomId].shuffle,
     });
     io.emit('rooms:update', getPublicRooms());
   });
@@ -541,6 +543,7 @@ io.on('connection', (socket) => {
       settings: room.settings,
       queue: room.queue,
       playback: getPlaybackSnapshot(room),
+      shuffle: room.shuffle,
     });
     io.emit('rooms:update', getPublicRooms());
   });
@@ -763,19 +766,33 @@ io.on('connection', (socket) => {
     broadcastQueuePlayback(roomId, room, socket.data.username);
   });
 
+  socket.on('queue:set-shuffle', ({ shuffle }) => {
+    const { roomId } = socket.data;
+    const room = rooms[roomId];
+    if (!room) return;
+    room.shuffle = !!shuffle;
+    broadcastQueueUpdate(roomId, room);
+  });
+
   socket.on('queue:skip', () => {
     const { roomId } = socket.data;
     const room = rooms[roomId];
     if (!room || !room.queue.length) return;
     syncPlaybackClock(room);
-    const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
-    const loopIndex = getFirstPlayableIndex(room.queue);
+
+    let nextIndex;
+    if (room.shuffle) {
+      const playable = room.queue.map((item, i) => (!item.hidden ? i : -1)).filter(i => i !== -1 && i !== room.playback.trackIndex);
+      nextIndex = playable.length > 0
+        ? playable[Math.floor(Math.random() * playable.length)]
+        : getFirstPlayableIndex(room.queue);
+    } else {
+      const next = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
+      nextIndex = next !== -1 ? next : getFirstPlayableIndex(room.queue);
+    }
+
     if (nextIndex !== -1) {
       room.playback.trackIndex = nextIndex;
-      room.playback.positionMs = 0;
-      room.playback.startedAt = room.playback.playing ? Date.now() : null;
-    } else if (loopIndex !== -1) {
-      room.playback.trackIndex = loopIndex;
       room.playback.positionMs = 0;
       room.playback.startedAt = room.playback.playing ? Date.now() : null;
     } else {
@@ -824,14 +841,24 @@ io.on('connection', (socket) => {
     if (room.queue[room.playback.trackIndex]?.id !== id) return;
 
     syncPlaybackClock(room);
-    const nextIndex = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
-    const loopIndex = getFirstPlayableIndex(room.queue);
-    if (nextIndex === -1 && loopIndex === -1) {
+
+    let nextIndex;
+    if (room.shuffle) {
+      const playable = room.queue.map((item, i) => (!item.hidden ? i : -1)).filter(i => i !== -1 && i !== room.playback.trackIndex);
+      nextIndex = playable.length > 0
+        ? playable[Math.floor(Math.random() * playable.length)]
+        : getFirstPlayableIndex(room.queue);
+    } else {
+      const next = getNextPlayableIndex(room.queue, room.playback.trackIndex, 1);
+      nextIndex = next !== -1 ? next : getFirstPlayableIndex(room.queue);
+    }
+
+    if (nextIndex === -1) {
       room.playback.playing = false;
       room.playback.positionMs = 0;
       room.playback.startedAt = null;
     } else {
-      room.playback.trackIndex = nextIndex !== -1 ? nextIndex : loopIndex;
+      room.playback.trackIndex = nextIndex;
       room.playback.positionMs = 0;
       room.playback.startedAt = Date.now();
     }
