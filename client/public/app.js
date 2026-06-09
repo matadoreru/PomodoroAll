@@ -90,6 +90,7 @@ const THEMES = {
   bosque:   { label: 'Bosque',   swatch: '#4ADE80', vars: { '--bg': '#0a110c', '--surface': '#121912', '--surface-2': '#182018', '--border': 'rgba(255,255,255,0.07)', '--text': '#e4f0e6', '--text-muted': '#60756a', '--text-dim': '#8fa898' }, hues: { study: 140, short_break: 185, long_break: 90 } },
   oceano:   { label: 'Océano',   swatch: '#38BDF8', vars: { '--bg': '#0b1018', '--surface': '#121a24', '--surface-2': '#182330', '--border': 'rgba(255,255,255,0.07)', '--text': '#e2ecf5', '--text-muted': '#5a7090', '--text-dim': '#8aa5be' }, hues: { study: 200, short_break: 250, long_break: 165 } },
   amanecer: { label: 'Amanecer', swatch: '#FB923C', vars: { '--bg': '#110c08', '--surface': '#1c1308', '--surface-2': '#251a0e', '--border': 'rgba(255,255,255,0.07)', '--text': '#f5ede0', '--text-muted': '#806050', '--text-dim': '#b59078' }, hues: { study: 25, short_break: 190, long_break: 125 } },
+  rojo:     { label: 'Rojo',     swatch: '#F87171', vars: { '--bg': '#110a0a', '--surface': '#1c1010', '--surface-2': '#271515', '--border': 'rgba(255,255,255,0.07)', '--text': '#f5e4e4', '--text-muted': '#80585a', '--text-dim': '#b58888' }, hues: { study: 0, short_break: 195, long_break: 145 } },
 };
 
 // ─── Inicialización ──────────────────────────────────────────────────────────
